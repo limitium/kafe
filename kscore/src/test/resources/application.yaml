@@ -1,0 +1,19 @@
+spring:
+  application.name: core-app
+  cloud.config.enabled: false
+
+  kafka:
+    bootstrap-servers: localhost:9092
+
+kafka:
+  streams:
+    num.standby.replicas: 123
+    rocksdb:
+      config.setter: art.limitium.kafe.kscore.kstreamcore.KStreamConfig$BoundedMemoryRocksDBConfig
+      total.off.heap.memory.mb: 2024
+      index.filter.block.ratio: 0.0
+      block.size: 4096
+      memtable:
+        total.memory.mb: 200
+        number: 3
+        size.mb: 16

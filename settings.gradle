@@ -1,0 +1,12 @@
+pluginManagement {
+    repositories {
+        maven { url 'https://repo.spring.io/milestone' }
+        gradlePluginPortal()
+    }
+}
+
+rootProject.name = 'kafe'
+
+include 'kscore' //general dependency for all kafka stream applications, provided as lib
+include 'sequencer' // should be used as lib, in others projects
+include 'ksmodel'
