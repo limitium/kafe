@@ -8,6 +8,7 @@ import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.streams.StreamsConfig;
 import org.apache.kafka.streams.errors.StreamsUncaughtExceptionHandler;
 import org.apache.kafka.streams.state.RocksDBConfigSetter;
+import org.apache.logging.log4j.util.Strings;
 import org.rocksdb.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -26,6 +27,7 @@ import org.springframework.kafka.config.StreamsBuilderFactoryBeanConfigurer;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.function.Consumer;
 
 import static org.apache.kafka.streams.StreamsConfig.EXACTLY_ONCE_V2;
@@ -59,9 +61,14 @@ public class KStreamConfig {
         streamsProperties.remove(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG);
 
         String appName = env.getRequiredProperty("spring.application.name");
+        String topicPrefix = Optional.ofNullable(env.getProperty("kafka.topic.prefix"))
+                .filter(Strings::isNotBlank)
+                .map(tp -> appName + "." + tp)
+                .orElse(appName);
+
         streamsProperties.put(StreamsConfig.APPLICATION_ID_CONFIG, appName);
-        streamsProperties.put(KStreamConfig.MANAGED_TOPIC_PREFIX, appName);
-        streamsProperties.put(KStreamConfig.INTERNAL_TOPIC_PREFIX, appName);
+        streamsProperties.put(KStreamConfig.MANAGED_TOPIC_PREFIX, topicPrefix);
+        streamsProperties.put(KStreamConfig.INTERNAL_TOPIC_PREFIX, topicPrefix);
 
         streamsProperties.put(StreamsConfig.PROCESSING_GUARANTEE_CONFIG, EXACTLY_ONCE_V2);
 
