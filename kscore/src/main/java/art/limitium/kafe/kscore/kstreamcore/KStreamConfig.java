@@ -2,11 +2,16 @@ package art.limitium.kafe.kscore.kstreamcore;
 
 import art.limitium.kafe.kscore.kstreamcore.KStreamConfig.BoundedMemoryRocksDBConfig.BoundedMemoryRocksDBConfigSetter;
 import art.limitium.kafe.kscore.kstreamcore.processor.ExtendedProcessorContext;
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
 import org.apache.kafka.clients.CommonClientConfigs;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
+import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.streams.StreamsConfig;
+import org.apache.kafka.streams.errors.DeserializationExceptionHandler;
 import org.apache.kafka.streams.errors.StreamsUncaughtExceptionHandler;
+import org.apache.kafka.streams.processor.ProcessorContext;
 import org.apache.kafka.streams.state.RocksDBConfigSetter;
 import org.apache.logging.log4j.util.Strings;
 import org.rocksdb.*;
@@ -24,6 +29,7 @@ import org.springframework.kafka.annotation.KafkaStreamsDefaultConfiguration;
 import org.springframework.kafka.config.KafkaStreamsConfiguration;
 import org.springframework.kafka.config.KafkaStreamsInfrastructureCustomizer;
 import org.springframework.kafka.config.StreamsBuilderFactoryBeanConfigurer;
+import org.springframework.kafka.streams.RecoveringDeserializationExceptionHandler;
 
 import java.util.List;
 import java.util.Map;
@@ -107,6 +113,8 @@ public class KStreamConfig {
         });
 
         streamsProperties.put(StreamsConfig.InternalConfig.TOPIC_PREFIX_ALTERNATIVE, streamsProperties.get(KStreamConfig.INTERNAL_TOPIC_PREFIX) + ".store");
+
+        streamsProperties.put(StreamsConfig.DEFAULT_DESERIALIZATION_EXCEPTION_HANDLER_CLASS_CONFIG, TolerableLogger.class);
 
         return new KafkaStreamsConfiguration(streamsProperties);
     }
@@ -205,6 +213,28 @@ public class KStreamConfig {
         @Override
         public void close(String storeName, Options options) {
 
+        }
+    }
+
+    public static class TolerableLogger implements DeserializationExceptionHandler {
+        public static String TOLERANCE_CONFIG = "kafka.tolerance.deserialization.exception";
+        private static final Log LOGGER = LogFactory.getLog(TolerableLogger.class);
+        private int maxTolerance = 0;
+
+        @Override
+        public DeserializationHandlerResponse handle(ProcessorContext processorContext, ConsumerRecord<byte[], byte[]> consumerRecord, Exception e) {
+            if (maxTolerance-- < 0) {
+                LOGGER.error("Max tolerance reached for deserialization exception", e);
+                return DeserializationHandlerResponse.FAIL;
+            }
+            return DeserializationHandlerResponse.CONTINUE;
+        }
+
+        @Override
+        public void configure(Map<String, ?> configs) {
+            if (configs.containsKey(TOLERANCE_CONFIG)) {
+                maxTolerance = Integer.parseInt(String.valueOf(configs.get(TOLERANCE_CONFIG)));
+            }
         }
     }
 }
