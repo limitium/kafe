@@ -137,25 +137,25 @@ public class Downstream<RequestData, Kout, Vout> {
         } else {
             requestDataOverrides.putValue(referenceId, override);
         }
-        resendRequest(referenceId);
+        correctRequest(referenceId);
+    }
+
+    public void correctRequest(long referenceId) {
+        logger.info("{} correct last request for {}", name, referenceId);
+        processRequest(
+                restoreLastRequestContext(getLastRequest(referenceId)
+                        .orElseThrow(() -> new RuntimeException("Unable to correct, noting was sent before")))
+        );
     }
 
     public void resendRequest(long referenceId) {
         logger.info("{} resend last request for {}", name, referenceId);
-        processRequest(
-                restoreLastRequestContext(getLastRequest(referenceId)
-                        .orElseThrow(() -> new RuntimeException("Unable to resend, noting was sent before")))
-        );
-    }
-
-    public void retryRequest(long referenceId) {
-        logger.info("{} retry last request for {}", name, referenceId);
         Request request = getLastRequest(referenceId)
                 .orElseThrow(() -> new RuntimeException("Unable to resend, noting was sent before"));
 
         generateAndSendRequest(request.id,
                 restoreLastRequestContext(request),
-                createEffectiveRequest(request.type, request.effectiveReferenceId, request.effectiveVersion)
+                createEffectiveRequest(request.type, request.effectiveReferenceId, request.effectiveVersion, request.externalId, request.externalVersion)
         );
 
         if (autoCommit) {
@@ -207,7 +207,7 @@ public class Downstream<RequestData, Kout, Vout> {
         calculateEffectiveRequests(requestContext).forEach(effectiveRequest -> {
             Request request = generateAndSendRequest(generateNextId(), requestContext, effectiveRequest);
 
-            logger.debug("{} sent request {}:{} {}:{},", name, request.type, request.correlationId, request.effectiveReferenceId, request.effectiveReferenceId);
+            logger.debug("{} sent request {}:{} {}:{}, {}:{}", name, request.type, request.correlationId, request.effectiveReferenceId, request.effectiveReferenceId, request.externalId, request.externalVersion);
             if (autoCommit) {
                 requestReplied(request.correlationId, true, null, null, null, 0);
                 logger.debug("{} autocommited request {}", name, request.correlationId);
@@ -218,21 +218,32 @@ public class Downstream<RequestData, Kout, Vout> {
     private List<EffectiveRequest<RequestData, Kout, Vout>> calculateEffectiveRequests(RequestContext<RequestData> requestContext) {
         List<EffectiveRequest<RequestData, Kout, Vout>> effectiveRequest = new ArrayList<>();
 
-        DownstreamReferenceState downstreamReferenceState = calculateDownstreamReferenceState(getLastNotNackedRequest(requestContext.referenceId));
+        Optional<Request> lastNotNackedRequest = getLastNotNackedRequest(requestContext.referenceId);
+        DownstreamReferenceState downstreamReferenceState = calculateDownstreamReferenceState(lastNotNackedRequest);
+        boolean isLastRequestPending = lastNotNackedRequest.filter(r -> r.state == Request.RequestState.PENDING).isPresent();
 
-        logger.debug("{} downstream state {} {}:{}", name, downstreamReferenceState.state, downstreamReferenceState.effectiveReferenceId, downstreamReferenceState.effectiveReferenceVersion);
+        logger.debug("{} downstream state {} {}:{}, {}:{}", name, downstreamReferenceState.state, downstreamReferenceState.effectiveReferenceId, downstreamReferenceState.effectiveReferenceVersion, downstreamReferenceState.id, downstreamReferenceState.version);
 
         switch (requestContext.requestType) {
             case NEW -> {
                 switch (downstreamReferenceState.state) {
-                    case UNAWARE -> effectiveRequest.add(createEffectiveRequest(NEW, requestContext.referenceId, 1));
+                    case UNAWARE -> effectiveRequest.add(createEffectiveRequest(NEW, requestContext.referenceId, 1, null, 0));
                     case EXISTS -> {
                         switch (downstreamAmendModel) {
-                            case AMENDABLE ->
-                                    effectiveRequest.add(createEffectiveRequest(AMEND, downstreamReferenceState.effectiveReferenceId, downstreamReferenceState.effectiveReferenceVersion + 1));
+                            case AMENDABLE -> {
+                                int downstreamExternalVersion = downstreamReferenceState.version;
+                                if(isLastRequestPending){
+                                    //optimistic increase version of downstream, in case it has a simple +1 model
+                                    downstreamExternalVersion += 1;
+                                }
+                                effectiveRequest.add(createEffectiveRequest(AMEND, downstreamReferenceState.effectiveReferenceId, downstreamReferenceState.effectiveReferenceVersion + 1, downstreamReferenceState.id, downstreamExternalVersion));
+                            }
                             case CANCEL_NEW -> {
-                                effectiveRequest.add(createEffectiveRequest(CANCEL, downstreamReferenceState.effectiveReferenceId, 1));
-                                effectiveRequest.add(createEffectiveRequest(NEW, generateNextId(), 1));
+                                if(isLastRequestPending){
+                                    logger.warn("{} canceling a pending request {} with cancel-new, empty external ID and version is used. Should be shelved until reply.",this.name, lastNotNackedRequest.get().id);
+                                }
+                                effectiveRequest.add(createEffectiveRequest(CANCEL, downstreamReferenceState.effectiveReferenceId, 1, downstreamReferenceState.id, downstreamReferenceState.version));
+                                effectiveRequest.add(createEffectiveRequest(NEW, generateNextId(), 1, null, 0));
                             }
                         }
                     }
@@ -242,14 +253,20 @@ public class Downstream<RequestData, Kout, Vout> {
             }
             case AMEND -> {
                 switch (downstreamReferenceState.state) {
-                    case UNAWARE -> effectiveRequest.add(createEffectiveRequest(NEW, requestContext.referenceId, 1));
+                    case UNAWARE -> effectiveRequest.add(createEffectiveRequest(NEW, requestContext.referenceId, 1, null, 0));
                     case EXISTS -> {
                         switch (downstreamAmendModel) {
-                            case AMENDABLE ->
-                                    effectiveRequest.add(createEffectiveRequest(AMEND, downstreamReferenceState.effectiveReferenceId, downstreamReferenceState.effectiveReferenceVersion + 1));
+                            case AMENDABLE ->{
+                                    int downstreamExternalVersion = downstreamReferenceState.version;
+                                    if(isLastRequestPending){
+                                        //optimistic increase version of downstream, in case it has a simple +1 model
+                                        downstreamExternalVersion += 1;
+                                    }
+                                    effectiveRequest.add(createEffectiveRequest(AMEND, downstreamReferenceState.effectiveReferenceId, downstreamReferenceState.effectiveReferenceVersion + 1, downstreamReferenceState.id, downstreamExternalVersion));
+                            }
                             case CANCEL_NEW -> {
-                                effectiveRequest.add(createEffectiveRequest(CANCEL, downstreamReferenceState.effectiveReferenceId, 1));
-                                effectiveRequest.add(createEffectiveRequest(NEW, generateNextId(), 1));
+                                effectiveRequest.add(createEffectiveRequest(CANCEL, downstreamReferenceState.effectiveReferenceId, 1, downstreamReferenceState.id, downstreamReferenceState.version));
+                                effectiveRequest.add(createEffectiveRequest(NEW, generateNextId(), 1, null, 0));
                             }
                         }
                     }
@@ -262,7 +279,7 @@ public class Downstream<RequestData, Kout, Vout> {
                     case UNAWARE ->
                             logger.info("{},{},{},{},{} Skip unaware cancel", this.name, requestContext.requestType, requestContext.referenceId, requestContext.referenceVersion, downstreamReferenceState.state);
                     case EXISTS ->
-                            effectiveRequest.add(new EffectiveRequest<>(CANCEL, requestConverter::cancelRequest, downstreamReferenceState.effectiveReferenceId, downstreamReferenceState.effectiveReferenceVersion));
+                            effectiveRequest.add(new EffectiveRequest<>(CANCEL, requestConverter::cancelRequest, downstreamReferenceState.effectiveReferenceId, downstreamReferenceState.effectiveReferenceVersion, downstreamReferenceState.id, downstreamReferenceState.version));
                     case CANCELED ->
                             logger.info("{},{},{},{},{} Skip double cancel", this.name, requestContext.requestType, requestContext.referenceId, requestContext.referenceVersion, downstreamReferenceState.state);
                 }
@@ -313,13 +330,13 @@ public class Downstream<RequestData, Kout, Vout> {
         return request;
     }
 
-    private EffectiveRequest<RequestData, Kout, Vout> createEffectiveRequest(Request.RequestType requestType, long effectiveReferenceId, int effectiveVersion) {
+    private EffectiveRequest<RequestData, Kout, Vout> createEffectiveRequest(Request.RequestType requestType, long effectiveReferenceId, int effectiveVersion, String externalId, int externalVersion) {
         return new EffectiveRequest<>(requestType, switch (requestType) {
             case NEW -> requestConverter::newRequest;
             case AMEND -> ((AmendConverter<RequestData, Kout, Vout>) requestConverter)::amendRequest;
             case CANCEL -> requestConverter::cancelRequest;
             case SKIP -> throw new RuntimeException("Never called");
-        }, effectiveReferenceId, effectiveVersion);
+        }, effectiveReferenceId, effectiveVersion, externalId, externalVersion);
     }
 
     private Request createRequest(EffectiveRequest<RequestData, Kout, Vout> effectiveRequest, long requestId, String correlationId, RequestContext<RequestData> requestContext) {
@@ -342,21 +359,22 @@ public class Downstream<RequestData, Kout, Vout> {
     @NotNull
     private DownstreamReferenceState calculateDownstreamReferenceState(Optional<Request> lastRequest) {
         return lastRequest
-                .map(r -> new DownstreamReferenceState(r.type == CANCEL ? DownstreamReferenceState.ReferenceState.CANCELED : DownstreamReferenceState.ReferenceState.EXISTS, r.effectiveReferenceId, r.effectiveVersion))
-                .orElse(new DownstreamReferenceState(DownstreamReferenceState.ReferenceState.UNAWARE, -1, -1));
+                .map(r -> new DownstreamReferenceState(r.type == CANCEL ? DownstreamReferenceState.ReferenceState.CANCELED : DownstreamReferenceState.ReferenceState.EXISTS, r.effectiveReferenceId, r.effectiveVersion, r.externalId, r.externalVersion))
+                .orElse(new DownstreamReferenceState(DownstreamReferenceState.ReferenceState.UNAWARE, -1, -1,null, -1));
     }
 
 
     interface EffectiveRequestConverter<RequestData, Kout, Vout> {
-        Record<Kout, Vout> convert(String correlationId, long effectiveReferenceId, int effectiveReferenceVersion, RequestData requestData);
+        Record<Kout, Vout> convert(String correlationId, long effectiveReferenceId, int effectiveReferenceVersion, RequestData requestData, String externalId, int externalVersion);
     }
 
     record EffectiveRequest<RequestData, Kout, Vout>(Request.RequestType requestType,
                                                      EffectiveRequestConverter<RequestData, Kout, Vout> requestConverter,
-                                                     long referenceId, int referenceVersion) {
+                                                     long referenceId, int referenceVersion,
+                                                     String externalId, int externalVersion) {
 
         public Record<Kout, Vout> createRecord(String correlationId, RequestData requestData) {
-            return requestConverter.convert(correlationId, referenceId, referenceVersion, requestData);
+            return requestConverter.convert(correlationId, referenceId, referenceVersion, requestData, externalId, externalVersion);
         }
     }
 

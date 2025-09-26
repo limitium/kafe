@@ -1,5 +1,6 @@
 package art.limitium.kafe.kscore.kstreamcore.dlq;
 
+import art.limitium.kafe.kscore.kstreamcore.processor.DLQContext;
 import art.limitium.kafe.kscore.kstreamcore.processor.ExtendedProcessorContext;
 import art.limitium.kafe.ksmodel.store.WrappedValue;
 import com.google.gson.Gson;
@@ -21,7 +22,7 @@ public class PojoDLQTransformer<KIn, VIn> implements DLQTransformer<KIn, VIn, Wr
      * Transform failed incoming message into DLQ record.
      *
      * @param failed                   incoming message
-     * @param extendedProcessorContext context bound to failed record
+     * @param dlqContext context bound to failed record
      * @param errorMessage             human-readable explanation
      * @param exception                exception if occurred
      * @return new record for DLQ topic
@@ -30,7 +31,7 @@ public class PojoDLQTransformer<KIn, VIn> implements DLQTransformer<KIn, VIn, Wr
     @Override
     public Record<KIn, WrappedValue<DLQEnvelope, VIn>> transform(
             @Nonnull Record<KIn, VIn> failed,
-            @Nonnull ExtendedProcessorContext<KIn, VIn, ?, ?> extendedProcessorContext,
+            @Nonnull DLQContext dlqContext,
             @Nullable String errorMessage,
             @Nullable Throwable exception) {
 
@@ -49,18 +50,18 @@ public class PojoDLQTransformer<KIn, VIn> implements DLQTransformer<KIn, VIn, Wr
         String json = gson.toJson(failed.value());
 
         DLQEnvelope dlqEnvelope = new DLQEnvelope(
-                extendedProcessorContext.getNextSequence(),
+                dlqContext.getNextSequence(),
                 errorMessage,
                 sw.toString(),
                 failed.value().getClass().getCanonicalName(),
                 json,
-                extendedProcessorContext.getTopic(),
-                extendedProcessorContext.getPartition(),
-                extendedProcessorContext.getOffset(),
+                dlqContext.getTopic(),
+                dlqContext.getPartition(),
+                dlqContext.getOffset(),
                 exception.getClass().getCanonicalName(),
                 key,
                 subKey,
-                extendedProcessorContext.currentLocalTimeMs()
+                dlqContext.currentLocalTimeMs()
         );
 
         return failed.withValue(new WrappedValue<>(dlqEnvelope, failed.value()));

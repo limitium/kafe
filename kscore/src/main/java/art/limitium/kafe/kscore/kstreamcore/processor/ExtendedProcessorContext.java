@@ -30,7 +30,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 
-public class ExtendedProcessorContext<KIn, VIn, KOut, VOut> extends ProcessorContextComposer<KOut, VOut> {
+public class ExtendedProcessorContext<KIn, VIn, KOut, VOut> extends ProcessorContextComposer<KOut, VOut> implements DLQContext {
     Logger logger = LoggerFactory.getLogger(getClass());
     public static final String SEQUENCER_NAMESPACE = "sequencer.namespace";
     private final Sequencer sequencer;
@@ -84,6 +84,7 @@ public class ExtendedProcessorContext<KIn, VIn, KOut, VOut> extends ProcessorCon
      *
      * @return a new sequence
      */
+    @Override
     public long getNextSequence() {
         sequencesCounter++;
         return sequencer.getNext();
@@ -146,14 +147,27 @@ public class ExtendedProcessorContext<KIn, VIn, KOut, VOut> extends ProcessorCon
      * @param exception    if occurs
      * @see #sendToDLQ(Record, Exception)
      */
-    @SuppressWarnings({"unchecked", "rawtypes"})
     public void sendToDLQ(Record<KIn, VIn> failed, @Nullable String errorMessage, @Nullable Exception exception) {
+        sendToDLQ(failed, errorMessage, exception, this);
+    }
+
+    /**
+     * Sends message to DLQ topic.
+     *
+     * @param failed       incoming message
+     * @param errorMessage additional explanation
+     * @param exception    if occurs
+     * @param dlqContext   custom dlq context
+     * @see #sendToDLQ(Record, Exception)
+     */
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    public void sendToDLQ(Record<KIn, VIn> failed, @Nullable String errorMessage, @Nullable Exception exception, DLQContext dlqContext) {
         if (processorMeta.dlqTopic == null || processorMeta.dlqTransformer == null) {
             throw new RuntimeException("DLQ wasn't setup properly. Use KSTopology.addProcessor().withDLQ() method to set.");
         }
         Record dlqRecord = processorMeta.dlqTransformer.transform(
                 failed,
-                this,
+                dlqContext,
                 errorMessage,
                 exception);
 
@@ -196,6 +210,7 @@ public class ExtendedProcessorContext<KIn, VIn, KOut, VOut> extends ProcessorCon
      *
      * @return the topic name
      */
+    @Override
     public String getTopic() {
         return recordMetadata().map(RecordMetadata::topic).orElse("");
     }
@@ -210,6 +225,7 @@ public class ExtendedProcessorContext<KIn, VIn, KOut, VOut> extends ProcessorCon
      *
      * @return the offset
      */
+    @Override
     public long getOffset() {
         return recordMetadata().map(RecordMetadata::offset).orElse(-1L);
     }
@@ -223,6 +239,7 @@ public class ExtendedProcessorContext<KIn, VIn, KOut, VOut> extends ProcessorCon
      *
      * @return the partition id
      */
+    @Override
     public int getPartition() {
         return recordMetadata().map(RecordMetadata::partition).orElse(-1);
     }

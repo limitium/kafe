@@ -164,12 +164,12 @@ public class BaseDSTest extends BaseKStreamApplicationTests {
                 }
             }, new NewCancelConverter<>() {
                 @Override
-                public Record<String, String> newRequest(String correlationId, long effectiveReferenceId, int effectiveReferenceVersion, String rd) {
+                public Record<String, String> newRequest(String correlationId, long effectiveReferenceId, int effectiveReferenceVersion, String rd, String eId, int eV) {
                     return new Record<>(correlationId, String.join(",", "new", "ds1", String.valueOf(effectiveReferenceId), String.valueOf(effectiveReferenceVersion), rd), System.currentTimeMillis());
                 }
 
                 @Override
-                public Record<String, String> cancelRequest(String correlationId, long effectiveReferenceId, int effectiveReferenceVersion, String rd) {
+                public Record<String, String> cancelRequest(String correlationId, long effectiveReferenceId, int effectiveReferenceVersion, String rd, String eId, int eV) {
                     return new Record<>(correlationId, String.join(",", "cancel", "ds1", String.valueOf(effectiveReferenceId), String.valueOf(effectiveReferenceVersion), "-"), System.currentTimeMillis());
                 }
             },
@@ -187,17 +187,17 @@ public class BaseDSTest extends BaseKStreamApplicationTests {
                 }
             }, new AmendConverter<>() {
                 @Override
-                public Record<String, String> amendRequest(String correlationId, long effectiveReferenceId, int effectiveReferenceVersion, String rd) {
+                public Record<String, String> amendRequest(String correlationId, long effectiveReferenceId, int effectiveReferenceVersion, String rd, String eId, int eV) {
                     return new Record<>(correlationId, String.join(",", "amend", "ds2", String.valueOf(effectiveReferenceId), String.valueOf(effectiveReferenceVersion), rd), System.currentTimeMillis());
                 }
 
                 @Override
-                public Record<String, String> newRequest(String correlationId, long effectiveReferenceId, int effectiveReferenceVersion, String rd) {
+                public Record<String, String> newRequest(String correlationId, long effectiveReferenceId, int effectiveReferenceVersion, String rd, String eId, int eV) {
                     return new Record<>(correlationId, String.join(",", "new", "ds2", String.valueOf(effectiveReferenceId), String.valueOf(effectiveReferenceVersion), rd), System.currentTimeMillis());
                 }
 
                 @Override
-                public Record<String, String> cancelRequest(String correlationId, long effectiveReferenceId, int effectiveReferenceVersion, String rd) {
+                public Record<String, String> cancelRequest(String correlationId, long effectiveReferenceId, int effectiveReferenceVersion, String rd, String eId, int eV) {
                     return new Record<>(correlationId, String.join(",", "cancel", "ds2", String.valueOf(effectiveReferenceId), String.valueOf(effectiveReferenceVersion), "-"), System.currentTimeMillis());
                 }
             },
@@ -213,17 +213,17 @@ public class BaseDSTest extends BaseKStreamApplicationTests {
                 }
             }, new AmendConverter<>() {
                 @Override
-                public Record<String, String> amendRequest(String correlationId, long effectiveReferenceId, int effectiveReferenceVersion, String rd) {
+                public Record<String, String> amendRequest(String correlationId, long effectiveReferenceId, int effectiveReferenceVersion, String rd, String eId, int eV) {
                     return new Record<>(correlationId, String.join(",", "amend", "ds3", String.valueOf(effectiveReferenceId), String.valueOf(effectiveReferenceVersion), rd), System.currentTimeMillis());
                 }
 
                 @Override
-                public Record<String, String> newRequest(String correlationId, long effectiveReferenceId, int effectiveReferenceVersion, String rd) {
+                public Record<String, String> newRequest(String correlationId, long effectiveReferenceId, int effectiveReferenceVersion, String rd, String eId, int eV) {
                     return new Record<>(correlationId, String.join(",", "new", "ds3", String.valueOf(effectiveReferenceId), String.valueOf(effectiveReferenceVersion), rd), System.currentTimeMillis());
                 }
 
                 @Override
-                public Record<String, String> cancelRequest(String correlationId, long effectiveReferenceId, int effectiveReferenceVersion, String rd) {
+                public Record<String, String> cancelRequest(String correlationId, long effectiveReferenceId, int effectiveReferenceVersion, String rd, String eId, int eV) {
                     return new Record<>(correlationId, String.join(",", "cancel", "ds3", String.valueOf(effectiveReferenceId), String.valueOf(effectiveReferenceVersion), "-"), System.currentTimeMillis());
                 }
             },
@@ -268,5 +268,4 @@ public class BaseDSTest extends BaseKStreamApplicationTests {
                            String payload) {
     }
 
-    ;
 }

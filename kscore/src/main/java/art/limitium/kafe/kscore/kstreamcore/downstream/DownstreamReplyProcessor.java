@@ -4,10 +4,14 @@ import art.limitium.kafe.kscore.kstreamcore.Downstream;
 import art.limitium.kafe.kscore.kstreamcore.processor.ExtendedProcessorContext;
 import art.limitium.kafe.kscore.kstreamcore.processor.ExtendedProcessor;
 import org.apache.kafka.streams.processor.api.Record;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import javax.annotation.Nullable;
 
 public class DownstreamReplyProcessor<KeyType, ReplyType> implements ExtendedProcessor<KeyType, ReplyType, Object, Object> {
+    private static final Logger logger = LoggerFactory.getLogger(DownstreamReplyProcessor.class);
+    
     final String downstreamName;
     final ReplyConsumer<KeyType, ReplyType> replyConsumer;
     private Downstream<Object, Object, Object> downstream;
@@ -24,7 +28,12 @@ public class DownstreamReplyProcessor<KeyType, ReplyType> implements ExtendedPro
 
     @Override
     public void process(Record<KeyType, ReplyType> record) {
-        replyConsumer.onReply(record, downstream::requestReplied);
+        try {
+            replyConsumer.onReply(record, downstream::requestReplied);
+        } catch (Exception e) {
+            logger.error("Failed to process reply for key: {}, downstream: {}", record.key(), downstreamName, e);
+            // Log error but continue processing - don't fail the entire stream
+        }
     }
 
     public interface ReplyConsumer<KeyType, ReplyType> {

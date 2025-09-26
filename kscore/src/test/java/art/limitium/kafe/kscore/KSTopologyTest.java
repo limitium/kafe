@@ -7,6 +7,8 @@ import art.limitium.kafe.kscore.kstreamcore.processor.ExtendedProcessorContext;
 import art.limitium.kafe.kscore.test.BaseKStreamApplicationTests;
 import art.limitium.kafe.kscore.test.KafkaTest;
 import art.limitium.kafe.kscore.kstreamcore.processor.ExtendedProcessor;
+import art.limitium.kafe.kscore.kstreamcore.dlq.DLQTransformer;
+import art.limitium.kafe.kscore.kstreamcore.processor.DLQContext;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.common.serialization.Serdes;
 import org.apache.kafka.streams.processor.api.Record;
@@ -42,6 +44,7 @@ class KSTopologyTest extends BaseKStreamApplicationTests {
     public static final Broadcast<String> BROADCAST = new Broadcast<>(BROADCAST_TOPIC);
     public static final Topic<Integer, String> DLQ = new Topic<>("test.out.dlq.1", Serdes.Integer(), Serdes.String());
     public static final int BORADCAST_KEY_TRIGGER = -13;
+    public static final int DLQ_CONTEXT_TEST_KEY = -99;
 
     @Configuration
     public static class TopologyConfig {
@@ -62,6 +65,12 @@ class KSTopologyTest extends BaseKStreamApplicationTests {
                     context.broadcast(BROADCAST, "B13");
                     return;
                 }
+                if (record.key() == DLQ_CONTEXT_TEST_KEY) {
+                    // Create and use custom DLQContext with hardcoded values
+                    CustomDLQContext customDLQContext = new CustomDLQContext();
+                    context.sendToDLQ(record, "DLQ context test", new RuntimeException("DLQ context test"), customDLQContext);
+                    return;
+                }
                 if (record.value() < 0) {
                     context.sendToDLQ(record, new RuntimeException("negative"));
                     return;
@@ -77,6 +86,39 @@ class KSTopologyTest extends BaseKStreamApplicationTests {
             }
         }
 
+        /**
+         * Custom DLQContext implementation for testing with hardcoded values
+         */
+        public static class CustomDLQContext implements DLQContext {
+            private long customSequence = 1000L; // Start with custom sequence
+            
+            @Override
+            public long getNextSequence() {
+                return customSequence++; // Use custom sequence
+            }
+            
+            @Override
+            public String getTopic() {
+                return "CUSTOM_TEST_TOPIC"; // Hardcoded custom topic
+            }
+            
+            @Override
+            public long getOffset() {
+                return 9999L; // Hardcoded custom offset
+            }
+            
+            @Override
+            public int getPartition() {
+                return 42; // Hardcoded custom partition
+            }
+            
+            @Override
+            public long currentLocalTimeMs() {
+                return 1234567890000L; // Hardcoded custom timestamp
+            }
+        }
+
+
         @Bean
         public static KStreamInfraCustomizer.KStreamKSTopologyBuilder provideTopology() {
             return builder -> {
@@ -89,7 +131,7 @@ class KSTopologyTest extends BaseKStreamApplicationTests {
                         .withSink(SINK1)
                         .withSink(SINK2)
                         .withBroadcast(BROADCAST)
-                        .withDLQ(DLQ, (failed, extendedProcessorContext, errorMessage, exception) -> failed.withValue(errorMessage))
+                        .withDLQ(DLQ, (failed, dlqContext, errorMessage, exception) -> failed.withValue(errorMessage))
                         .done();
             };
 
@@ -126,5 +168,22 @@ class KSTopologyTest extends BaseKStreamApplicationTests {
         ConsumerRecord<Integer, String> b1 = waitForRecordFrom(BROADCAST_TOPIC);
         ConsumerRecord<Integer, String> b2 = waitForRecordFrom(BROADCAST_TOPIC);
         assertNotEquals(b1.partition(), b2.partition());
+    }
+
+    @Test
+    void testDLQContext() {
+        // Send a message that will trigger DLQ with custom context
+        send(SOURCE, DLQ_CONTEXT_TEST_KEY, 123L);
+        ConsumerRecord<Integer, String> dlqRecord = waitForRecordFrom(DLQ);
+
+        // Verify the DLQ record contains the original key
+        assertEquals(DLQ_CONTEXT_TEST_KEY, dlqRecord.key());
+        
+        // Verify the DLQ record value contains the error message (from lambda transformer)
+        assertEquals("DLQ context test", dlqRecord.value());
+        
+        // Note: The custom DLQContext is passed to sendToDLQ but the lambda transformer
+        // doesn't use it - it just returns the error message. This test verifies that
+        // the custom DLQContext can be passed to sendToDLQ without errors.
     }
 }

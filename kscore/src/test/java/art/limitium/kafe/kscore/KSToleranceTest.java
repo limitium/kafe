@@ -106,12 +106,12 @@ public class KSToleranceTest extends BaseKStreamApplicationTests {
                     new CorrelationIdGenerator<>(){},
                         new NewCancelConverter<>() {
                             @Override
-                            public Record<Long, Long> newRequest(String correlationId, long effectiveReferenceId, int effectiveReferenceVersion, Long rd) {
+                            public Record<Long, Long> newRequest(String correlationId, long effectiveReferenceId, int effectiveReferenceVersion, Long rd, String eId, int eV) {
                                 return new Record<>(Long.parseLong(correlationId), rd, System.currentTimeMillis());
                             }
 
                             @Override
-                            public Record<Long, Long> cancelRequest(String correlationId, long effectiveReferenceId, int effectiveReferenceVersion, Long rd) {
+                            public Record<Long, Long> cancelRequest(String correlationId, long effectiveReferenceId, int effectiveReferenceVersion, Long rd, String eId, int eV) {
                                 return new Record<>(Long.parseLong(correlationId), rd, System.currentTimeMillis());
                             }
                         },

@@ -8,7 +8,7 @@ import org.junit.jupiter.api.Test;
 
 import java.nio.charset.StandardCharsets;
 
-import static art.limitium.kafe.kscore.kstreamcore.downstream.DownstreamResendProcessor.RESEND_MODEL;
+import static art.limitium.kafe.kscore.kstreamcore.downstream.DownstreamResendProcessor.CORRECT;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 
@@ -199,9 +199,9 @@ public class MainScenariosTest extends BaseDSTest {
         assertNotEquals(0, request3.respondedAt);
 
 
-        send(RESEND1, 0, request1.referenceId, RESEND_MODEL);
-        send(RESEND2, 0, request1.referenceId, RESEND_MODEL);
-        send(RESEND3, 0, request1.referenceId, RESEND_MODEL);
+        send(RESEND1, 0, request1.referenceId, CORRECT);
+        send(RESEND2, 0, request1.referenceId, CORRECT);
+        send(RESEND3, 0, request1.referenceId, CORRECT);
 
         Outgoing ds1outCancel = parseOutput(waitForRecordFrom(SINK1));
         assertEquals("cancel", ds1outCancel.requestType());

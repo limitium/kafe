@@ -2,8 +2,6 @@ package art.limitium.kafe.kscore.kstreamcore;
 
 import art.limitium.kafe.kscore.kstreamcore.KStreamConfig.BoundedMemoryRocksDBConfig.BoundedMemoryRocksDBConfigSetter;
 import art.limitium.kafe.kscore.kstreamcore.processor.ExtendedProcessorContext;
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
 import org.apache.kafka.clients.CommonClientConfigs;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
@@ -29,7 +27,6 @@ import org.springframework.kafka.annotation.KafkaStreamsDefaultConfiguration;
 import org.springframework.kafka.config.KafkaStreamsConfiguration;
 import org.springframework.kafka.config.KafkaStreamsInfrastructureCustomizer;
 import org.springframework.kafka.config.StreamsBuilderFactoryBeanConfigurer;
-import org.springframework.kafka.streams.RecoveringDeserializationExceptionHandler;
 
 import java.util.List;
 import java.util.Map;
@@ -218,13 +215,13 @@ public class KStreamConfig {
 
     public static class TolerableLogger implements DeserializationExceptionHandler {
         public static String TOLERANCE_CONFIG = "kafka.tolerance.deserialization.exception";
-        private static final Log LOGGER = LogFactory.getLog(TolerableLogger.class);
+        private final Logger log = LoggerFactory.getLogger(TolerableLogger.class);
         private int maxTolerance = 0;
 
         @Override
         public DeserializationHandlerResponse handle(ProcessorContext processorContext, ConsumerRecord<byte[], byte[]> consumerRecord, Exception e) {
             if (maxTolerance-- < 0) {
-                LOGGER.error("Max tolerance reached for deserialization exception", e);
+                log.error("Max tolerance reached for deserialization exception", e);
                 return DeserializationHandlerResponse.FAIL;
             }
             return DeserializationHandlerResponse.CONTINUE;
