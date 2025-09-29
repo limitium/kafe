@@ -1,10 +1,7 @@
 package art.limitium.kafe.kscore;
 
 import art.limitium.kafe.kscore.kstreamcore.Topic;
-import art.limitium.kafe.kscore.kstreamcore.dlq.DLQ;
-import art.limitium.kafe.kscore.kstreamcore.dlq.DLQEnvelope;
-import art.limitium.kafe.kscore.kstreamcore.dlq.DLQTopic;
-import art.limitium.kafe.kscore.kstreamcore.dlq.PojoEnvelopedDLQ;
+import art.limitium.kafe.kscore.kstreamcore.dlq.*;
 import art.limitium.kafe.kscore.kstreamcore.processor.ExtendedProcessorContext;
 import art.limitium.kafe.kscore.test.BaseKStreamApplicationTests;
 import art.limitium.kafe.kscore.test.KafkaTest;
@@ -63,7 +60,7 @@ class KSStatelessTopologyTest extends BaseKStreamApplicationTests {
                 }
 
                 @Override
-                public Record<Integer, Integer> convert(Record<Integer, Integer> toConvert, ExtendedProcessorContext<Integer, Integer, Integer, Integer> notused) throws ConvertException {
+                public Record<Integer, Integer> convert(Record<Integer, Integer> toConvert, ExtendedProcessorContext<Integer, Integer, Integer, Integer> notused) throws DLQException {
                     if (toConvert.value() < 1) {
                         throw new ConvertException("negative");
                     }

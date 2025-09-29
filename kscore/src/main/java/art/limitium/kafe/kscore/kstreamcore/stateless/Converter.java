@@ -1,5 +1,6 @@
 package art.limitium.kafe.kscore.kstreamcore.stateless;
 
+import art.limitium.kafe.kscore.kstreamcore.dlq.DLQException;
 import art.limitium.kafe.kscore.kstreamcore.processor.ExtendedProcessorContext;
 import org.apache.kafka.streams.processor.api.Record;
 
@@ -38,7 +39,7 @@ public interface Converter<KIn, VIn, KOut, VOut, DLQm> extends Base<KIn, VIn, KO
      * @param toConvert incoming record for convertation
      * @param context to work with metadata
      * @return new record to be sent or null to skip sending
-     * @throws ConvertException real business exceptions which must be settled into {@link Base#dlq()}
+     * @throws DLQException real business exceptions which must be settled into {@link Base#dlq()}
      */
-    Record convert(Record<KIn, VIn> toConvert, ExtendedProcessorContext<KIn, VIn, KOut, VOut> context) throws ConvertException;
+    Record convert(Record<KIn, VIn> toConvert, ExtendedProcessorContext<KIn, VIn, KOut, VOut> context) throws DLQException;
 }

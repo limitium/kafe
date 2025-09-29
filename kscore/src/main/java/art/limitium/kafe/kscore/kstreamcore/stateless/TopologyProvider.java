@@ -2,6 +2,7 @@ package art.limitium.kafe.kscore.kstreamcore.stateless;
 
 import art.limitium.kafe.kscore.kstreamcore.KSTopology;
 import art.limitium.kafe.kscore.kstreamcore.KStreamInfraCustomizer;
+import art.limitium.kafe.kscore.kstreamcore.dlq.DLQException;
 import art.limitium.kafe.kscore.kstreamcore.processor.ExtendedProcessorContext;
 import art.limitium.kafe.kscore.kstreamcore.processor.ExtendedProcessor;
 import org.apache.kafka.streams.processor.StreamPartitioner;
@@ -37,7 +38,7 @@ public class TopologyProvider {
                     }
                 }
                 context.send(statelessProcessorDefinition.outputTopic(), toSend);
-            } catch (Converter.ConvertException e) {
+            } catch (DLQException e) {
                 context.sendToDLQ(record, e.getMessage(), e);
             }
         }

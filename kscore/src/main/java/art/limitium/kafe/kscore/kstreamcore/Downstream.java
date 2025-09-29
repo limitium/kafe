@@ -12,12 +12,12 @@ import art.limitium.kafe.kscore.kstreamcore.processor.ExtendedProcessorContext;
 import art.limitium.kafe.ksmodel.audit.Audit;
 import art.limitium.kafe.ksmodel.downstream.Request;
 import art.limitium.kafe.ksmodel.store.WrappedValue;
+import jakarta.validation.constraints.NotNull;
 import org.apache.kafka.common.serialization.StringSerializer;
 import org.apache.kafka.streams.processor.api.Record;
 import org.apache.kafka.streams.state.KeyValueIterator;
 import org.apache.kafka.streams.state.WrappedIndexedKeyValueStore;
 import org.apache.kafka.streams.state.WrappedKeyValueStore;
-import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

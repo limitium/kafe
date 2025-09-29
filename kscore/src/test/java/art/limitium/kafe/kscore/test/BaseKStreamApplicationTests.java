@@ -175,6 +175,14 @@ public class BaseKStreamApplicationTests {
     @Autowired
     private BaseKafkaTestConfig.KafkaProducer producer;
 
+    protected BaseKafkaTestConfig.KafkaConsumer getConsumer(){
+        return consumer;
+    }
+
+    protected BaseKafkaTestConfig.KafkaProducer getProducer(){
+        return producer;
+    }
+
     /**
      * Sends key and value in {@link Topic#topic}
      *

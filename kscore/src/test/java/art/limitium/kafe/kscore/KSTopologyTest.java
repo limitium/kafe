@@ -3,6 +3,7 @@ package art.limitium.kafe.kscore;
 import art.limitium.kafe.kscore.kstreamcore.Broadcast;
 import art.limitium.kafe.kscore.kstreamcore.KStreamInfraCustomizer;
 import art.limitium.kafe.kscore.kstreamcore.Topic;
+import art.limitium.kafe.kscore.kstreamcore.dlq.DLQException;
 import art.limitium.kafe.kscore.kstreamcore.processor.ExtendedProcessorContext;
 import art.limitium.kafe.kscore.test.BaseKStreamApplicationTests;
 import art.limitium.kafe.kscore.test.KafkaTest;
@@ -72,7 +73,7 @@ class KSTopologyTest extends BaseKStreamApplicationTests {
                     return;
                 }
                 if (record.value() < 0) {
-                    context.sendToDLQ(record, new RuntimeException("negative"));
+                    context.sendToDLQ(record, new DLQException("UnExpectedStateException","",""));
                     return;
                 }
 
