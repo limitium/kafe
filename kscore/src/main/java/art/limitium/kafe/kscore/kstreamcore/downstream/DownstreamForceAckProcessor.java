@@ -24,8 +24,13 @@ public class DownstreamForceAckProcessor implements ExtendedProcessor<String, St
 
     @Override
     public void process(Record<String, String> record) {
+        String correlationId = record.key();
+        if (correlationId == null || correlationId.isEmpty()) {
+            logger.warn("Skip force ack: null or empty correlation id, downstream: {}", downstreamName);
+            return;
+        }
         try {
-            downstream.forceAckRequest(record.key());
+            downstream.forceAckRequest(correlationId);
         } catch (Exception e) {
             logger.error("Failed to force ack request for key: {}, downstream: {}", record.key(), downstreamName, e);
             // Log error but continue processing - don't fail the entire stream

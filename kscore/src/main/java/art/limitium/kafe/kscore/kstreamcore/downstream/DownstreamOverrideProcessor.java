@@ -24,8 +24,13 @@ public class DownstreamOverrideProcessor<RequestData> implements ExtendedProcess
 
     @Override
     public void process(Record<Long, RequestData> record) {
+        Long key = record.key();
+        if (key == null) {
+            logger.warn("Skip override update: null key, downstream: {}", downstreamName);
+            return;
+        }
         try {
-            downstream.updateOverride(record.key(), record.value());
+            downstream.updateOverride(key, record.value());
         } catch (Exception e) {
             logger.error("Failed to update override for key: {}, downstream: {}", record.key(), downstreamName, e);
             // Log error but continue processing - don't fail the entire stream

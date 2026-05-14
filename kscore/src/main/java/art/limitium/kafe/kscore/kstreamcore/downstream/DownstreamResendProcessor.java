@@ -26,11 +26,16 @@ public class DownstreamResendProcessor implements ExtendedProcessor<Long, String
 
     @Override
     public void process(Record<Long, String> record) {
+        Long key = record.key();
+        if (key == null) {
+            logger.warn("Skip resend/correct: null key, downstream: {}", downstreamName);
+            return;
+        }
         try {
             if (CORRECT.equals(record.value())) {
-                downstream.correctRequest(record.key());
+                downstream.correctRequest(key);
             } else {
-                downstream.resendRequest(record.key());
+                downstream.resendRequest(key);
             }
         } catch (Exception e) {
             logger.error("Failed to process resend/correct request for key: {}, value: {}, downstream: {}", 

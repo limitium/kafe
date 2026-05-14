@@ -123,4 +123,98 @@ public class PojoDLQTransformerTest {
         assertEquals("qwe", transformed.value().value());
     }
 
+    @Test
+    void transform_nullPayload_doesNotThrow() {
+        PojoDLQTransformer<Long, String> transformer = new PojoDLQTransformer<>();
+
+        Record<Long, WrappedValue<DLQEnvelope, String>> transformed = transformer.transform(
+                new Record<>(1L, null, 1234),
+                new AuditWrapperSupplierTest.TestableExtendedProcessorContext(new ProcessorContext() {
+                    @Override
+                    public void forward(Record record) {
+                    }
+
+                    @Override
+                    public void forward(Record record, String childName) {
+                    }
+
+                    @Override
+                    public String applicationId() {
+                        return null;
+                    }
+
+                    @Override
+                    public TaskId taskId() {
+                        return new TaskId(1, 1);
+                    }
+
+                    @Override
+                    public Optional<RecordMetadata> recordMetadata() {
+                        return Optional.empty();
+                    }
+
+                    @Override
+                    public Serde<?> keySerde() {
+                        return null;
+                    }
+
+                    @Override
+                    public Serde<?> valueSerde() {
+                        return null;
+                    }
+
+                    @Override
+                    public File stateDir() {
+                        return null;
+                    }
+
+                    @Override
+                    public StreamsMetrics metrics() {
+                        return null;
+                    }
+
+                    @Override
+                    public <S extends StateStore> S getStateStore(String name) {
+                        return null;
+                    }
+
+                    @Override
+                    public Cancellable schedule(Duration interval, PunctuationType type, Punctuator callback) {
+                        return null;
+                    }
+
+                    @Override
+                    public void commit() {
+                    }
+
+                    @Override
+                    public Map<String, Object> appConfigs() {
+                        return new HashMap<>();
+                    }
+
+                    @Override
+                    public Map<String, Object> appConfigsWithPrefix(String prefix) {
+                        return null;
+                    }
+
+                    @Override
+                    public long currentSystemTimeMs() {
+                        return 0;
+                    }
+
+                    @Override
+                    public long currentStreamTimeMs() {
+                        return 0;
+                    }
+                }, null),
+                "null payload",
+                new RuntimeException("boom"));
+
+        assertNotNull(transformed);
+        assertNull(transformed.value().value());
+        DLQEnvelope envelope = (DLQEnvelope) transformed.value().wrapper();
+        assertNull(envelope.payloadClass());
+        assertEquals("null", envelope.payloadBodyJSON());
+    }
+
 }

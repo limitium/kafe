@@ -21,6 +21,8 @@ public class DownstreamReferenceState {
                 "state=" + state +
                 ", effectiveReferenceId=" + effectiveReferenceId +
                 ", effectiveReferenceVersion=" + effectiveReferenceVersion +
+                ", id=" + id +
+                ", version=" + version +
                 '}';
     }
 

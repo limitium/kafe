@@ -91,11 +91,11 @@ public class ExtendedProcessorContext<KIn, VIn, KOut, VOut> extends ProcessorCon
     }
 
     public Headers getIncomingRecordHeaders() {
-        return incomingRecord.headers();
+        return incomingRecord != null ? incomingRecord.headers() : null;
     }
 
     public long getIncomingRecordTimestamp() {
-        return incomingRecord.timestamp();
+        return incomingRecord != null ? incomingRecord.timestamp() : -1L;
     }
 
 
@@ -136,7 +136,8 @@ public class ExtendedProcessorContext<KIn, VIn, KOut, VOut> extends ProcessorCon
     }
 
     public void sendToDLQ(Record<KIn, VIn> failed, Exception exception) {
-        sendToDLQ(failed, exception.getMessage(), exception);
+        String message = exception != null ? exception.getMessage() : null;
+        sendToDLQ(failed, message, exception);
     }
 
     /**
@@ -251,7 +252,8 @@ public class ExtendedProcessorContext<KIn, VIn, KOut, VOut> extends ProcessorCon
     }
 
     public void endProcessing() {
-        logger.info("Processed record with key: {}, generated sequences: {}, elapsed: {} ms", incomingRecord.key(), sequencesCounter, String.format("%.2f", (System.nanoTime() - this.startProcessing) * 1f / 1_000_000));
+        Object key = incomingRecord != null ? incomingRecord.key() : null;
+        logger.info("Processed record with key: {}, generated sequences: {}, elapsed: {} ms", key, sequencesCounter, String.format("%.2f", (System.nanoTime() - this.startProcessing) * 1f / 1_000_000));
     }
 
     @SuppressWarnings("unchecked")

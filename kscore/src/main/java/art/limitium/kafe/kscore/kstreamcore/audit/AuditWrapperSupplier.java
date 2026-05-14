@@ -70,6 +70,9 @@ public class AuditWrapperSupplier<K, V> extends WrapperSupplier<K, V, Audit, Ext
 
     @NotNull
     private static Optional<String> getStrFromHeader(Headers incomingRecordHeaders, String header) {
+        if (incomingRecordHeaders == null) {
+            return Optional.empty();
+        }
         return Optional.ofNullable(incomingRecordHeaders.lastHeader(header))
                 .map(Header::value)
                 .filter(Objects::nonNull)

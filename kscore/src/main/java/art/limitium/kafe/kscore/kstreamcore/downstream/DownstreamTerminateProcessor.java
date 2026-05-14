@@ -24,8 +24,14 @@ public class DownstreamTerminateProcessor implements ExtendedProcessor<Long, Lon
 
     @Override
     public void process(Record<Long, Long> record) {
+        Long key = record.key();
+        Long value = record.value();
+        if (key == null || value == null) {
+            logger.warn("Skip terminate: missing key or value (key={}, value={}), downstream: {}", key, value, downstreamName);
+            return;
+        }
         try {
-            downstream.terminateRequest(record.key(), record.value());
+            downstream.terminateRequest(key, value);
         } catch (Exception e) {
             logger.error("Failed to terminate request for key: {}, value: {}, downstream: {}", 
                         record.key(), record.value(), downstreamName, e);

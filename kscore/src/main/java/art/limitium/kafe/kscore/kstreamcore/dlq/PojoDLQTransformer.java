@@ -1,7 +1,6 @@
 package art.limitium.kafe.kscore.kstreamcore.dlq;
 
 import art.limitium.kafe.kscore.kstreamcore.processor.DLQContext;
-import art.limitium.kafe.kscore.kstreamcore.processor.ExtendedProcessorContext;
 import art.limitium.kafe.ksmodel.store.WrappedValue;
 import com.google.gson.Gson;
 import org.apache.kafka.streams.processor.api.Record;
@@ -35,8 +34,14 @@ public class PojoDLQTransformer<KIn, VIn> implements DLQTransformer<KIn, VIn, Wr
             @Nullable String errorMessage,
             @Nullable Throwable exception) {
 
-        StringWriter sw = new StringWriter();
-        exception.printStackTrace(new PrintWriter(sw));
+        String stacktrace;
+        if (exception != null) {
+            StringWriter sw = new StringWriter();
+            exception.printStackTrace(new PrintWriter(sw));
+            stacktrace = sw.toString();
+        } else {
+            stacktrace = "";
+        }
 
         String key = null;
         String subKey = null;
@@ -46,24 +51,26 @@ public class PojoDLQTransformer<KIn, VIn> implements DLQTransformer<KIn, VIn, Wr
 
         }
 
+        VIn payload = failed.value();
         Gson gson = new Gson();
-        String json = gson.toJson(failed.value());
+        String json = gson.toJson(payload);
+        String payloadClass = payload != null ? payload.getClass().getCanonicalName() : null;
 
         DLQEnvelope dlqEnvelope = new DLQEnvelope(
                 dlqContext.getNextSequence(),
                 errorMessage,
-                sw.toString(),
-                failed.value().getClass().getCanonicalName(),
+                stacktrace,
+                payloadClass,
                 json,
                 dlqContext.getTopic(),
                 dlqContext.getPartition(),
                 dlqContext.getOffset(),
-                exception.getClass().getCanonicalName(),
+                exception != null ? exception.getClass().getCanonicalName() : null,
                 key,
                 subKey,
                 dlqContext.currentLocalTimeMs()
         );
 
-        return failed.withValue(new WrappedValue<>(dlqEnvelope, failed.value()));
+        return failed.withValue(new WrappedValue<>(dlqEnvelope, payload));
     }
 }
