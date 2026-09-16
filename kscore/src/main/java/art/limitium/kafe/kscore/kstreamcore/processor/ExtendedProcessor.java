@@ -6,6 +6,7 @@ import org.apache.kafka.streams.processor.StateStore;
 import org.apache.kafka.streams.processor.api.Record;
 
 import java.time.Duration;
+import java.time.LocalDate;
 
 public interface ExtendedProcessor<KIn, VIn, KOut, VOut> {
 
@@ -29,6 +30,26 @@ public interface ExtendedProcessor<KIn, VIn, KOut, VOut> {
      * @param record the record to process
      */
     void process(Record<KIn, VIn> record);
+
+    /**
+     * Evaluate the trade date bound to the incoming message. Called once per record, before
+     * {@link #process(Record)} is entered, and exposed for the whole duration of the processing through
+     * {@link ExtendedProcessorContext#getTradeDate()}.
+     * <p>
+     * Default evaluation derives the date from the incoming record timestamp, see
+     * {@link TradeDateEvaluator#fromRecordTimestamp(Record)}. Override to supply a business rule.
+     * <p>
+     * Returning null, or throwing, routes the record to the DLQ. Throwing a
+     * {@link art.limitium.kafe.kscore.kstreamcore.dlq.DLQException} keeps its own message and key/subKey in the DLQ
+     * envelope, anything else is wrapped into a {@link TradeDateEvaluationException}.
+     *
+     * @param incoming incoming message
+     * @param context  context bound to the incoming message
+     * @return trade date, never null
+     */
+    default LocalDate evaluateTradeDate(Record<KIn, VIn> incoming, ExtendedProcessorContext<KIn, VIn, KOut, VOut> context) {
+        return TradeDateEvaluator.fromRecordTimestamp(incoming);
+    }
 
     /**
      * Close this processor and clean up any resources. Be aware that {@code #close()} is called after an internal cleanup.

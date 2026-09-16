@@ -20,8 +20,8 @@ public class BaseProcessor<KIn, VIn, KOut, VOut> implements org.apache.kafka.str
     @Override
     public void process(Record<KIn, VIn> record) {
         logger.info("Incoming message {}-{} {}, updates extendedContext {}", extendedProcessorContext.getTopic(), extendedProcessorContext.getPartition(), record, extendedProcessorContext);
-        extendedProcessorContext.beginProcessing(record);
         try {
+            extendedProcessorContext.beginProcessing(record);
             extendedProcessor.process(record);
         } catch (Exception e) {
             logger.error("unhandled exception in {} {}, for {}", getName(), e, record);
@@ -36,7 +36,7 @@ public class BaseProcessor<KIn, VIn, KOut, VOut> implements org.apache.kafka.str
 
     @Override
     public void init(ProcessorContext<KOut, VOut> context) {
-        extendedProcessorContext = new ExtendedProcessorContext<>(context, processorMeta);
+        extendedProcessorContext = new ExtendedProcessorContext<>(context, processorMeta, extendedProcessor::evaluateTradeDate);
         logger.info("Init processor {}, new ExtendedContext created {}", getName(), extendedProcessorContext);
 
         extendedProcessor.init(extendedProcessorContext);

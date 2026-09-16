@@ -8,6 +8,7 @@ import art.limitium.kafe.ksmodel.audit.Audit;
 import art.limitium.kafe.ksmodel.downstream.Request;
 import art.limitium.kafe.sequencer.Sequencer;
 import art.limitium.kafe.kscore.kstreamcore.downstream.DownstreamDefinition;
+import art.limitium.kafe.kscore.kstreamcore.dlq.DLQException;
 import org.apache.kafka.common.header.Headers;
 import org.apache.kafka.streams.processor.StateStore;
 import org.apache.kafka.streams.processor.api.ProcessorContext;
@@ -26,6 +27,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.annotation.Nullable;
+import java.time.LocalDate;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
@@ -40,11 +42,19 @@ public class ExtendedProcessorContext<KIn, VIn, KOut, VOut> extends ProcessorCon
     private int sequencesCounter = 0;
     private long startProcessing = 0;
 
+    private final TradeDateEvaluator<KIn, VIn, KOut, VOut> tradeDateEvaluator;
+    private LocalDate tradeDate;
+
     private final PartitionProvider partitionProvider;
 
     public ExtendedProcessorContext(ProcessorContext<KOut, VOut> context, ProcessorMeta<KIn, VIn, KOut, VOut> processorMeta) {
+        this(context, processorMeta, (incoming, ctx) -> TradeDateEvaluator.fromRecordTimestamp(incoming));
+    }
+
+    public ExtendedProcessorContext(ProcessorContext<KOut, VOut> context, ProcessorMeta<KIn, VIn, KOut, VOut> processorMeta, TradeDateEvaluator<KIn, VIn, KOut, VOut> tradeDateEvaluator) {
         super(context);
         this.processorMeta = processorMeta;
+        this.tradeDateEvaluator = tradeDateEvaluator;
         this.sequencer = new Sequencer(this::currentLocalTimeMs, (Integer) context.appConfigs().getOrDefault(SEQUENCER_NAMESPACE, 0), context.taskId().partition());
         //@todo add broadcasts to processor meta and populate partitions data on startup
         this.partitionProvider = new PartitionProvider(context);
@@ -88,6 +98,17 @@ public class ExtendedProcessorContext<KIn, VIn, KOut, VOut> extends ProcessorCon
     public long getNextSequence() {
         sequencesCounter++;
         return sequencer.getNext();
+    }
+
+    /**
+     * Trade date bound to the current incoming message, evaluated once before the processor started to process it.
+     *
+     * @return trade date, or {@code null} if no message is being processed or its evaluation failed - the latter is
+     * observable from a {@link art.limitium.kafe.kscore.kstreamcore.dlq.DLQTransformer} handling that failure
+     * @see ExtendedProcessor#evaluateTradeDate(Record, ExtendedProcessorContext)
+     */
+    public LocalDate getTradeDate() {
+        return tradeDate;
     }
 
     public Headers getIncomingRecordHeaders() {
@@ -249,6 +270,25 @@ public class ExtendedProcessorContext<KIn, VIn, KOut, VOut> extends ProcessorCon
         this.incomingRecord = incomingRecord;
         this.sequencesCounter = 0;
         this.startProcessing = System.nanoTime();
+        //cleared before evaluation might throw, so a previous record trade date never leaks into a DLQ envelope
+        this.tradeDate = null;
+        this.tradeDate = evaluateTradeDate(incomingRecord);
+    }
+
+    private LocalDate evaluateTradeDate(Record<KIn, VIn> incomingRecord) {
+        LocalDate evaluated;
+        try {
+            evaluated = tradeDateEvaluator.evaluate(incomingRecord, this);
+        } catch (DLQException e) {
+            //evaluator supplied its own reason and codes, keep them
+            throw e;
+        } catch (Exception e) {
+            throw new TradeDateEvaluationException("Unable to evaluate trade date: " + e.getMessage(), e);
+        }
+        if (evaluated == null) {
+            throw new TradeDateEvaluationException("Trade date evaluator returned null");
+        }
+        return evaluated;
     }
 
     public void endProcessing() {
