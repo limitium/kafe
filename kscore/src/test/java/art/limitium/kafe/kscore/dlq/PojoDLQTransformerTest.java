@@ -15,6 +15,7 @@ import org.junit.jupiter.api.Test;
 
 import java.io.File;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
@@ -80,6 +81,11 @@ public class PojoDLQTransformerTest {
 
             @Override
             public Cancellable schedule(Duration interval, PunctuationType type, Punctuator callback) {
+                return null;
+            }
+
+            @Override
+            public Cancellable schedule(Instant startTime, Duration interval, PunctuationType type, Punctuator callback) {
                 return null;
             }
 
@@ -180,6 +186,11 @@ public class PojoDLQTransformerTest {
 
                     @Override
                     public Cancellable schedule(Duration interval, PunctuationType type, Punctuator callback) {
+                        return null;
+                    }
+
+                    @Override
+                    public Cancellable schedule(Instant startTime, Duration interval, PunctuationType type, Punctuator callback) {
                         return null;
                     }
 

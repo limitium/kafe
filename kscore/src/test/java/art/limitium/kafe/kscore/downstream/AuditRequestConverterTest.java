@@ -13,7 +13,7 @@ import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.data.SchemaAndValue;
 import org.apache.kafka.connect.data.SchemaBuilder;
 import org.apache.kafka.connect.data.Struct;
-import org.jetbrains.annotations.NotNull;
+import javax.annotation.Nonnull;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -52,7 +52,7 @@ public class AuditRequestConverterTest {
         assertEquals(wrappedValue.wrapper().removed(), deserialized.wrapper().removed());
     }
 
-    @NotNull
+    @Nonnull
     private AuditValueConverter<String> getStringAuditValueConverter() {
         AuditValueConverter<String> auditStringConverter = new AuditValueConverter<>() {
             @Override

@@ -8,15 +8,15 @@ import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.streams.StreamsConfig;
 import org.apache.kafka.streams.errors.DeserializationExceptionHandler;
+import org.apache.kafka.streams.errors.ErrorHandlerContext;
 import org.apache.kafka.streams.errors.StreamsUncaughtExceptionHandler;
-import org.apache.kafka.streams.processor.ProcessorContext;
 import org.apache.kafka.streams.state.RocksDBConfigSetter;
 import org.apache.logging.log4j.util.Strings;
 import org.rocksdb.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.SpringApplication;
-import org.springframework.boot.autoconfigure.kafka.KafkaProperties;
+import org.springframework.boot.kafka.autoconfigure.KafkaProperties;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -111,7 +111,7 @@ public class KStreamConfig {
 
         streamsProperties.put(StreamsConfig.InternalConfig.TOPIC_PREFIX_ALTERNATIVE, streamsProperties.get(KStreamConfig.INTERNAL_TOPIC_PREFIX) + ".store");
 
-        streamsProperties.put(StreamsConfig.DEFAULT_DESERIALIZATION_EXCEPTION_HANDLER_CLASS_CONFIG, TolerableLogger.class);
+        streamsProperties.put(StreamsConfig.DESERIALIZATION_EXCEPTION_HANDLER_CLASS_CONFIG, TolerableLogger.class);
 
         return new KafkaStreamsConfiguration(streamsProperties);
     }
@@ -219,12 +219,12 @@ public class KStreamConfig {
         private int maxTolerance = 0;
 
         @Override
-        public DeserializationHandlerResponse handle(ProcessorContext processorContext, ConsumerRecord<byte[], byte[]> consumerRecord, Exception e) {
+        public Response handleError(ErrorHandlerContext errorHandlerContext, ConsumerRecord<byte[], byte[]> consumerRecord, Exception e) {
             if (maxTolerance-- < 0) {
                 log.error("Max tolerance reached for deserialization exception", e);
-                return DeserializationHandlerResponse.FAIL;
+                return Response.fail();
             }
-            return DeserializationHandlerResponse.CONTINUE;
+            return Response.resume();
         }
 
         @Override

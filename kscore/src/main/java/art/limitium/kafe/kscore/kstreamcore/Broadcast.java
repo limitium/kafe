@@ -13,7 +13,7 @@ public class Broadcast<V> extends SinkDefinition<Integer, V> {
      * @param topicNameExtractor
      */
     public Broadcast(Topic<Integer, V> topic, TopicNameExtractor<Integer, V> topicNameExtractor) {
-        super(topic, topicNameExtractor, (topicName, key, value, numPartitions) -> key);
+        super(topic, topicNameExtractor, SinglePartitioner.of((topicName, key, value, numPartitions) -> key));
     }
 
     /**

@@ -1,6 +1,6 @@
 plugins {
     id 'java'
-    id "com.diffplug.spotless" version "6.19.0"
+    id "com.diffplug.spotless" version "8.11.0"
 }
 
 spotless {
@@ -9,7 +9,7 @@ spotless {
     }
     format 'misc', {
         target '**/*.gradle', '**/*.md', '**/.gitignore'
-        indentWithSpaces()
+        leadingTabsToSpaces()
         trimTrailingWhitespace()
         endWithNewline()
     }
@@ -21,11 +21,15 @@ repositories {
 subprojects {
     apply plugin: 'java'
 
-    version '1.0-SNAPSHOT'
+    version = '1.0-SNAPSHOT'
 
-    group 'art.limitium.kafe'
+    group = 'art.limitium.kafe'
 
-    sourceCompatibility = 1.17
+    java {
+        toolchain {
+            languageVersion = JavaLanguageVersion.of(25)
+        }
+    }
 
 
     repositories {

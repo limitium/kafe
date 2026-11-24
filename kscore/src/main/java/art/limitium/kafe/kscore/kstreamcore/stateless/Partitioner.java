@@ -11,7 +11,7 @@ package art.limitium.kafe.kscore.kstreamcore.stateless;
  */
 public interface Partitioner<KIn, VIn, KOut, VOut, DLQm> extends Base<KIn, VIn, KOut, VOut, DLQm> {
     /**
-     * Repartionate {@link Base#outputTopic()} with the similar to {@link org.apache.kafka.streams.processor.StreamPartitioner#partition(String, Object, Object, int)} signature,
+     * Repartionate {@link Base#outputTopic()} with the same signature as {@link art.limitium.kafe.kscore.kstreamcore.SinglePartitioner#partition(String, Object, Object, int)},
      * based on outgoing Record<KOut, VOut> key and value
      *
      * @param topic

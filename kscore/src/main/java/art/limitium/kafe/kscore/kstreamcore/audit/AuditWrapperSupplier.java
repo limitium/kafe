@@ -7,7 +7,7 @@ import org.apache.kafka.common.header.Headers;
 import org.apache.kafka.streams.state.WrappedKeyValueStore;
 import org.apache.kafka.streams.state.internals.WrapperSupplier;
 import org.apache.logging.log4j.util.Strings;
-import org.jetbrains.annotations.NotNull;
+import javax.annotation.Nonnull;
 
 import java.nio.charset.Charset;
 import java.util.Objects;
@@ -59,7 +59,7 @@ public class AuditWrapperSupplier<K, V> extends WrapperSupplier<K, V, Audit, Ext
         );
     }
 
-    @NotNull
+    @Nonnull
     public static Long extractTraceId(ExtendedProcessorContext context) {
         return getStrFromHeader(context.getIncomingRecordHeaders(), AuditHeaders.TRACE)
                 .map(v -> v.split("-"))
@@ -68,7 +68,7 @@ public class AuditWrapperSupplier<K, V> extends WrapperSupplier<K, V, Audit, Ext
                 .orElse(-1L);
     }
 
-    @NotNull
+    @Nonnull
     private static Optional<String> getStrFromHeader(Headers incomingRecordHeaders, String header) {
         if (incomingRecordHeaders == null) {
             return Optional.empty();

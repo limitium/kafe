@@ -16,7 +16,7 @@ import org.apache.kafka.streams.state.KeyValueIterator;
 import org.apache.kafka.streams.state.KeyValueStore;
 import org.apache.kafka.streams.state.UniqKeyViolationException;
 import org.apache.kafka.streams.state.internals.metrics.StateStoreMetrics2;
-import org.jetbrains.annotations.NotNull;
+import javax.annotation.Nonnull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -312,7 +312,7 @@ public class IndexedMeteredKeyValueStore<K, V> extends MeteredKeyValueStore<K, V
         return generateIndexKey(keyGenerator, indexName, value);
     }
 
-    @NotNull
+    @Nonnull
     private String generateIndexKey(Function<V, String> keyGenerator, String indexName, V value) {
         String indexKey = keyGenerator.apply(value);
         Objects.requireNonNull(indexKey, "Null keys are not supported. Problem with an index:" + indexName);

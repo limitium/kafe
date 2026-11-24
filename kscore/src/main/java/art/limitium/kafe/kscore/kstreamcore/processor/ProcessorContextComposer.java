@@ -9,6 +9,7 @@ import org.apache.kafka.streams.processor.api.RecordMetadata;
 
 import java.io.File;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.Map;
 import java.util.Optional;
 
@@ -72,6 +73,11 @@ public class ProcessorContextComposer<KOut, VOut> implements ProcessorContext<KO
     @Override
     public Cancellable schedule(Duration interval, PunctuationType type, Punctuator callback) {
         return context.schedule(interval, type, callback);
+    }
+
+    @Override
+    public Cancellable schedule(Instant startTime, Duration interval, PunctuationType type, Punctuator callback) {
+        return context.schedule(startTime, interval, type, callback);
     }
 
     @Override

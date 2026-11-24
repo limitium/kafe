@@ -4,7 +4,7 @@ import art.limitium.kafe.kscore.kstreamcore.Topic;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.common.serialization.Serde;
-import org.jetbrains.annotations.NotNull;
+import javax.annotation.Nonnull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -18,7 +18,6 @@ import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.context.TestContext;
 import org.springframework.test.context.TestExecutionListener;
 
-import javax.annotation.PostConstruct;
 import java.util.*;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
@@ -90,14 +89,13 @@ public class BaseKStreamApplicationTests {
         public class KafkaConsumer {
             private static final Logger LOGGER = LoggerFactory.getLogger(KafkaConsumer.class);
 
-            @Value("${test.consumer.topics}")
-            private String[] consumerTopics;
+            private final String[] consumerTopics;
 
-            private Map<String, LinkedBlockingQueue<ConsumerRecord<byte[], byte[]>>> received =
+            private final Map<String, LinkedBlockingQueue<ConsumerRecord<byte[], byte[]>>> received =
                     new HashMap<>();
 
-            @PostConstruct
-            public void fillReceived() {
+            public KafkaConsumer(@Value("${test.consumer.topics}") String[] consumerTopics) {
+                this.consumerTopics = consumerTopics;
                 for (String consumerTopic : consumerTopics) {
                     LOGGER.info("Create receiver for topic " + consumerTopic);
                     received.put(consumerTopic, new LinkedBlockingQueue<>());
@@ -294,7 +292,7 @@ public class BaseKStreamApplicationTests {
         consumer.clearAllTopics();
     }
 
-    @NotNull
+    @Nonnull
     private <K, V> ConsumerRecord<K, V> createConsumedRecord(ConsumerRecord<byte[], byte[]> record, Serde<K> keySerde, Serde<V> valueSerde) {
         return new ConsumerRecord<>(
                 record.topic(),

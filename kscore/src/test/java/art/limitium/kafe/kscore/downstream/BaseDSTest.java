@@ -4,6 +4,7 @@ import art.limitium.kafe.kscore.KStreamApplication;
 import art.limitium.kafe.kscore.kstreamcore.Downstream;
 import art.limitium.kafe.kscore.kstreamcore.KSTopology;
 import art.limitium.kafe.kscore.kstreamcore.KStreamInfraCustomizer;
+import art.limitium.kafe.kscore.kstreamcore.SinglePartitioner;
 import art.limitium.kafe.kscore.kstreamcore.Topic;
 import art.limitium.kafe.kscore.kstreamcore.processor.ExtendedProcessorContext;
 import art.limitium.kafe.ksmodel.audit.Audit;
@@ -173,7 +174,7 @@ public class BaseDSTest extends BaseKStreamApplicationTests {
                     return new Record<>(correlationId, String.join(",", "cancel", "ds1", String.valueOf(effectiveReferenceId), String.valueOf(effectiveReferenceVersion), "-"), System.currentTimeMillis());
                 }
             },
-                    new KSTopology.SinkDefinition<>(SINK1, null, (topic, key, value, numPartitions) -> Sequencer.getPartition(Long.parseLong(key))),
+                    new KSTopology.SinkDefinition<>(SINK1, null, SinglePartitioner.of((topic, key, value, numPartitions) -> Sequencer.getPartition(Long.parseLong(key)))),
                     new DownstreamDefinition.ReplyDefinition<>(new KSTopology.SourceDefinition<>(new Topic<>("reply.ds1", Serdes.String(), Serdes.String()), false), (record, requestsAware) -> {
                         String[] parts = record.value().split(",");
                         requestsAware.replied(record.key(), Boolean.parseBoolean(parts[0]), parts[1], parts[2]);
@@ -201,7 +202,7 @@ public class BaseDSTest extends BaseKStreamApplicationTests {
                     return new Record<>(correlationId, String.join(",", "cancel", "ds2", String.valueOf(effectiveReferenceId), String.valueOf(effectiveReferenceVersion), "-"), System.currentTimeMillis());
                 }
             },
-                    new KSTopology.SinkDefinition<>(SINK2, null, (topic, key, value, numPartitions) -> Sequencer.getPartition(Long.parseLong(key))),
+                    new KSTopology.SinkDefinition<>(SINK2, null, SinglePartitioner.of((topic, key, value, numPartitions) -> Sequencer.getPartition(Long.parseLong(key)))),
                     null,
                     (toOverride, override) -> toOverride + "+" + override);
 
@@ -227,7 +228,7 @@ public class BaseDSTest extends BaseKStreamApplicationTests {
                     return new Record<>(correlationId, String.join(",", "cancel", "ds3", String.valueOf(effectiveReferenceId), String.valueOf(effectiveReferenceVersion), "-"), System.currentTimeMillis());
                 }
             },
-                    new KSTopology.SinkDefinition<>(SINK3, null, (topic, key, value, numPartitions) -> Sequencer.getPartition(Long.parseLong(key))),
+                    new KSTopology.SinkDefinition<>(SINK3, null, SinglePartitioner.of((topic, key, value, numPartitions) -> Sequencer.getPartition(Long.parseLong(key)))),
                     new DownstreamDefinition.ReplyDefinition<>(new KSTopology.SourceDefinition<>(new Topic<>("reply.ds3", Serdes.String(), Serdes.String()), false), (record, requestsAware) -> {
                         String[] parts = record.value().split(",");
                         requestsAware.replied(record.key(), Boolean.parseBoolean(parts[0]), parts[1], parts[2]);

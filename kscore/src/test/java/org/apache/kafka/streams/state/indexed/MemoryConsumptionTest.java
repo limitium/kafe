@@ -64,11 +64,6 @@ public class MemoryConsumptionTest {
                             }
 
                             @Override
-                            public void init(org.apache.kafka.streams.processor.ProcessorContext context, StateStore root) {
-
-                            }
-
-                            @Override
                             public void init(StateStoreContext context, StateStore root) {
 
                             }

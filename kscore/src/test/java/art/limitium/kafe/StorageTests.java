@@ -16,7 +16,7 @@ import org.apache.kafka.streams.state.internals.IndexedMeteredKeyValueStore;
 import org.junit.jupiter.api.Test;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.kafka.support.serializer.JsonSerde;
+import org.springframework.kafka.support.serializer.JacksonJsonSerde;
 
 @KafkaTest(topics = {"tcp1", "tpc2"}, consumers = {"tpc2"}, configs = {
         KStreamApplication.class,
@@ -28,10 +28,10 @@ class StorageTests extends BaseKStreamApplicationTests {
     public static final String STR_KV = "kv";
     public static final String STR_IN = "in";
     public static final String PRC_UPD = "prc";
-    public static JsonSerde<User> userJsonSerde;
+    public static JacksonJsonSerde<User> userJsonSerde;
 
     static {
-        userJsonSerde = new JsonSerde<>(User.class);
+        userJsonSerde = new JacksonJsonSerde<>(User.class);
 
     }
 

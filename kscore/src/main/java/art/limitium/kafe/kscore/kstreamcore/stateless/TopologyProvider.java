@@ -2,6 +2,7 @@ package art.limitium.kafe.kscore.kstreamcore.stateless;
 
 import art.limitium.kafe.kscore.kstreamcore.KSTopology;
 import art.limitium.kafe.kscore.kstreamcore.KStreamInfraCustomizer;
+import art.limitium.kafe.kscore.kstreamcore.SinglePartitioner;
 import art.limitium.kafe.kscore.kstreamcore.dlq.DLQException;
 import art.limitium.kafe.kscore.kstreamcore.processor.ExtendedProcessorContext;
 import art.limitium.kafe.kscore.kstreamcore.processor.ExtendedProcessor;
@@ -53,7 +54,7 @@ public class TopologyProvider {
         return topology -> {
             StreamPartitioner streamPartitioner = null;
             if (statelessProcessorDefinition instanceof Partitioner partitioner) {
-                streamPartitioner = partitioner::partition;
+                streamPartitioner = SinglePartitioner.of(partitioner::partition);
             }
 
             KSTopology.ProcessorDefinition processorDefinition = topology.addProcessor(() -> new StatelessProcessor(statelessProcessorDefinition))

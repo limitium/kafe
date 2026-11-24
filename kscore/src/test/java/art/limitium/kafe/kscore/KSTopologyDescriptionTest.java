@@ -17,6 +17,8 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.kafka.annotation.KafkaStreamsDefaultConfiguration;
 import org.springframework.kafka.config.KafkaStreamsConfiguration;
 
+import java.util.Optional;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 public class KSTopologyDescriptionTest {
@@ -158,7 +160,7 @@ public class KSTopologyDescriptionTest {
 
                 })
                 .withSource(new KSTopology.SourceDefinition<>(topicIntBPattern, true))
-                .withSink(new KSTopology.SinkDefinition<>(topicLongY2, null, (topic, key, value, numPartitions) -> null))
+                .withSink(new KSTopology.SinkDefinition<>(topicLongY2, null, (topic, key, value, numPartitions) -> Optional.empty()))
                 .done();
 
         ksTopology.buildTopology();
