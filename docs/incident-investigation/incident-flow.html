@@ -1,0 +1,620 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+</head>
+<body style="margin:0">
+<title>Incident Investigation: Now vs Tomorrow</title>
+<style>
+/* Layout: a one-hour race on a shared time axis, then one request shown two ways (chat with APS vs a hands-off pipeline), then the paired cost/gain table. */
+:root {
+  --bg: #f2f5f7; --surface: #ffffff; --surface2: #e8edf1; --fg: #15202b; --muted: #556270; --line: #c6cfd8;
+  --wait: #974407; --wait-bg: #fbe9d0; --accent: #0b625b; --accent-bg: #d9f0ec;
+  --display: "Space Grotesk", "Inter", system-ui, sans-serif;
+  --body: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #0f151b; --surface: #18212a; --surface2: #232f3a; --fg: #e7ecf1; --muted: #9babb9; --line: #35424f;
+  --wait: #f0a651; --wait-bg: #3a2b10; --accent: #45c9b8; --accent-bg: #10332f; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #0f151b; --surface: #18212a; --surface2: #232f3a; --fg: #e7ecf1; --muted: #9babb9; --line: #35424f;
+  --wait: #f0a651; --wait-bg: #3a2b10; --accent: #45c9b8; --accent-bg: #10332f; color-scheme: dark }
+
+body { background: var(--bg); color: var(--fg); font-family: var(--body); font-size: 15px; line-height: 1.5; }
+.wrap { max-width: 1180px; margin: 0 auto; padding-block: 28px 48px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: flex; flex-direction: column; gap: 36px; }
+h1, h2, h3 { font-family: var(--display); margin: 0; text-wrap: balance; font-weight: 600; }
+h1 { font-size: clamp(1.6rem, 3.2vw, 2.3rem); line-height: 1.15; }
+h2 { font-size: 1.3rem; }
+h3 { font-size: 1rem; }
+p { margin: 0; }
+.eyebrow { font-size: .8rem; letter-spacing: .09em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+.lead { max-width: 68ch; color: var(--muted); font-size: 1.02rem; }
+header, section { display: grid; gap: 14px; }
+header { gap: 8px; }
+.sec-head { display: flex; flex-wrap: wrap; gap: 10px 20px; align-items: center; justify-content: space-between; }
+.note { font-size: .82rem; color: var(--muted); }
+
+button { font: 500 .9rem var(--body); color: var(--fg); background: transparent; border: 1px solid var(--line);
+  border-radius: 6px; padding: 7px 13px; cursor: pointer; }
+button:hover { border-color: var(--fg); }
+button[aria-pressed="true"], button.primary { background: var(--fg); color: var(--bg); border-color: var(--fg); }
+button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+button:disabled { opacity: .6; cursor: default; }
+.tabs { display: flex; flex-wrap: wrap; gap: 6px; }
+
+/* Race */
+.race { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 18px; }
+.race-scroll { overflow-x: auto; }
+.race-inner { min-width: 640px; display: grid; gap: 18px; }
+.lane { display: grid; gap: 8px; }
+.lane-head { display: flex; align-items: baseline; gap: 10px 22px; flex-wrap: wrap; }
+.lane-head h3 { min-width: 9.5rem; }
+.stat { display: inline-flex; align-items: baseline; gap: 6px; font-size: .88rem; color: var(--muted); }
+.stat b { font: 600 1.5rem var(--display); font-variant-numeric: tabular-nums; min-width: 1.4em; text-align: right; }
+.lane.now .stat b { color: var(--wait); }
+.lane.tom .stat b { color: var(--accent); }
+.track { position: relative; height: 46px; background: var(--surface2); border-radius: 6px; overflow: hidden; }
+.reveal { position: absolute; inset: 0; }
+.seg { position: absolute; top: 0; bottom: 0; display: flex; align-items: center; justify-content: center; padding: 0 6px;
+  font-size: .8rem; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  border-right: 2px solid var(--surface); box-sizing: border-box; color: var(--fg); }
+.seg.dev { background: var(--surface); box-shadow: inset 0 0 0 1px var(--line); }
+.seg.aps { background: var(--wait-bg); box-shadow: inset 0 0 0 1px var(--wait); }
+.seg.wait { background: repeating-linear-gradient(135deg, var(--wait-bg) 0 7px, var(--surface2) 7px 14px); box-shadow: inset 0 0 0 1px var(--wait); color: var(--wait); font-weight: 600; }
+.seg.round { background: var(--accent-bg); box-shadow: inset 0 0 0 1px var(--accent); color: var(--accent); font-weight: 600; font-variant-numeric: tabular-nums; }
+.ph { position: absolute; top: 0; bottom: 0; width: 2px; background: var(--fg); left: 100%; }
+.axis { position: relative; height: 18px; font-size: .8rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+.axis span { position: absolute; top: 0; transform: translateX(-50%); }
+.axis span:first-child { transform: none; } .axis span:last-child { left: auto !important; right: 0; transform: none; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: .8rem; color: var(--muted); margin-top: 12px; }
+.legend i { display: inline-block; width: 14px; height: 10px; border-radius: 2px; margin-right: 6px; vertical-align: baseline; }
+.legend .dev { background: var(--surface); box-shadow: inset 0 0 0 1px var(--line); }
+.legend .aps { background: var(--wait-bg); box-shadow: inset 0 0 0 1px var(--wait); }
+.legend .wait { background: repeating-linear-gradient(135deg, var(--wait-bg) 0 3px, var(--surface2) 3px 6px); box-shadow: inset 0 0 0 1px var(--wait); }
+.legend .round { background: var(--accent-bg); box-shadow: inset 0 0 0 1px var(--accent); }
+
+/* One request, two ways */
+.two { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; align-items: start; }
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; min-width: 0; display: grid; }
+.panel-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; flex-wrap: wrap; padding: 14px 18px; border-bottom: 1px solid var(--line); }
+.panel-head span { font-size: .82rem; color: var(--muted); }
+.panel-body { padding: 16px 18px; display: grid; gap: 8px; }
+.panel-foot { padding: 12px 18px; border-top: 1px solid var(--line); font-size: .9rem; font-weight: 600; }
+.panel.now .panel-foot { color: var(--wait); }
+.panel.tom .panel-foot { color: var(--accent); }
+
+.msg { max-width: 86%; padding: 8px 12px; border-radius: 12px; font-size: .9rem; display: grid; gap: 2px; min-width: 0; overflow-wrap: anywhere; }
+.msg .meta { font-size: .8rem; font-weight: 600; color: var(--muted); font-variant-numeric: tabular-nums; }
+.msg.d { background: var(--surface2); justify-self: start; border-bottom-left-radius: 3px; }
+.msg.a { background: var(--wait-bg); justify-self: end; border-bottom-right-radius: 3px; }
+.gap { justify-self: center; font-size: .8rem; font-weight: 600; color: var(--wait); border: 1px dashed var(--wait); border-radius: 999px; padding: 2px 12px; margin: 4px 0; }
+
+.pipe { gap: 0; justify-items: stretch; }
+.card { border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; display: grid; gap: 6px; min-width: 0; }
+.card .meta { display: flex; justify-content: space-between; gap: 10px; font-size: .8rem; font-weight: 600; color: var(--muted); font-variant-numeric: tabular-nums; }
+.card p { font-size: .9rem; }
+.card.result { border-color: var(--accent); background: var(--accent-bg); }
+.card.result p { font-weight: 500; }
+pre { margin: 0; font: .8rem/1.5 var(--mono); background: var(--surface2); border-radius: 6px; padding: 8px 10px; overflow-x: auto; white-space: pre; }
+.kv { font-size: .84rem; color: var(--muted); }
+.kv b { color: var(--fg); font-weight: 600; }
+.link { display: grid; justify-items: center; gap: 0; }
+.link::before, .link::after { content: ""; width: 2px; height: 12px; background: var(--muted); }
+.gate { font-size: .8rem; font-weight: 600; color: var(--accent); border: 1.5px dashed var(--accent); border-radius: 999px; padding: 3px 14px; text-align: center; }
+.prod { border: 2px dashed var(--fg); border-radius: 10px; padding: 12px 14px 14px; display: grid; gap: 10px; }
+.prod-label { font-size: .8rem; font-weight: 600; letter-spacing: .09em; }
+.exec { display: grid; gap: 2px; }
+.exec span { font-size: .84rem; color: var(--muted); }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.chips span { font-size: .8rem; font-weight: 500; border: 1px solid var(--line); border-radius: 999px; padding: 2px 11px; color: var(--muted); }
+.chips span.on { background: var(--accent); border-color: var(--accent); color: var(--surface); font-weight: 600; }
+.chips em { font-style: normal; font-size: .8rem; color: var(--muted); }
+
+table { width: 100%; border-collapse: collapse; font-size: .95rem; }
+.tablebox { overflow-x: auto; }
+th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--line); vertical-align: top; width: 50%; }
+thead th { font: 600 .8rem var(--body); letter-spacing: .09em; text-transform: uppercase; color: var(--muted); }
+td.was { color: var(--wait); } td.will { color: var(--accent); font-weight: 600; }
+
+.dirs { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; }
+.dirs div { border-top: 2px solid var(--fg); padding-top: 10px; display: grid; gap: 4px; align-content: start; }
+.dirs p, .road li p { color: var(--muted); font-size: .9rem; }
+.road { display: grid; grid-template-columns: repeat(3, 1fr); list-style: none; margin: 0; padding: 0; }
+.road li { border-left: 1px solid var(--line); padding: 2px 16px; display: grid; gap: 4px; align-content: start; }
+.road .eyebrow { color: var(--accent); }
+
+/* Architecture */
+.arch { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; margin: 0; display: grid; gap: 6px; min-width: 0; }
+.arch h3 { display: flex; gap: 12px; align-items: baseline; flex-wrap: wrap; }
+.arch h3 span { font: 600 .85rem var(--display); }
+.arch.now h3 span { color: var(--wait); } .arch.tom h3 span { color: var(--accent); }
+.arch .scroll { overflow-x: auto; }
+.arch svg { display: block; width: 100%; min-width: 880px; height: auto; }
+.arch figcaption { font-size: .84rem; color: var(--muted); }
+.arch text { font-family: var(--body); fill: var(--fg); }
+.arch .t { font-size: 13.5px; font-weight: 600; }
+.arch .s { font-size: 12px; fill: var(--muted); }
+.arch .zl { font-size: 12px; font-weight: 600; letter-spacing: .09em; }
+.arch .el { font-size: 12px; font-weight: 600; paint-order: stroke; stroke: var(--surface); stroke-width: 5px; stroke-linejoin: round; }
+.arch .el.m { font-weight: 400; fill: var(--muted); }
+.arch .z { fill: none; stroke: var(--line); stroke-width: 1.5; }
+.arch .zp { fill: none; stroke: var(--fg); stroke-width: 2; stroke-dasharray: 8 5; }
+.arch .b { fill: var(--surface2); stroke: var(--line); stroke-width: 1.2; }
+.arch .ba { fill: var(--accent-bg); stroke: var(--accent); stroke-width: 1.6; }
+.arch .bw { fill: var(--wait-bg); stroke: var(--wait); stroke-width: 1.6; }
+.arch .bg { fill: var(--surface); stroke: var(--accent); stroke-width: 1.6; stroke-dasharray: 5 3; }
+.arch .bd { fill: none; stroke: var(--muted); stroke-width: 1.2; stroke-dasharray: 4 4; }
+.arch .ic { fill: var(--muted); }
+.arch .e { fill: none; stroke: var(--muted); stroke-width: 1.5; }
+.arch .ea { fill: none; stroke: var(--accent); stroke-width: 2; }
+.arch .ew { fill: none; stroke: var(--wait); stroke-width: 2; }
+.arch .ed { fill: none; stroke: var(--muted); stroke-width: 1.3; stroke-dasharray: 4 4; }
+.arch .hm { fill: var(--muted); } .arch .ha { fill: var(--accent); } .arch .hw { fill: var(--wait); }
+.arch .fa { fill: var(--accent); } .arch .fw { fill: var(--wait); }
+
+@media (max-width: 860px) { .two { grid-template-columns: 1fr; } .road { grid-template-columns: 1fr; gap: 14px; } }
+</style>
+
+<div class="wrap">
+  <header>
+    <span class="eyebrow">Production support · SL3 incident investigation</span>
+    <h1>One answer per hour, or one every few minutes</h1>
+    <p class="lead">Today the dev team gets evidence from production by instructing APS in chat, step by step, and waiting. Tomorrow Claude writes the check, a local executor runs it inside production, and only a checked result comes back.</p>
+  </header>
+
+  <section>
+    <div class="sec-head">
+      <h2>The same hour of an incident</h2>
+      <button class="primary" id="play">Play the hour</button>
+    </div>
+    <div class="race">
+      <div class="race-scroll"><div class="race-inner">
+        <div class="lane now">
+          <div class="lane-head"><h3>Now</h3>
+            <span class="stat"><b id="n-ans">1</b> answer from production</span>
+            <span class="stat"><b id="n-msg">8</b> chat messages with APS</span></div>
+          <div class="track"><div class="reveal" id="rv-now"></div><div class="ph" id="ph-now"></div></div>
+        </div>
+        <div class="lane tom">
+          <div class="lane-head"><h3>Tomorrow</h3>
+            <span class="stat"><b id="t-ans">12</b> answers from production</span>
+            <span class="stat"><b>0</b> chat messages with APS</span></div>
+          <div class="track"><div class="reveal" id="rv-tom"></div><div class="ph" id="ph-tom"></div></div>
+        </div>
+        <div class="axis" id="axis"></div>
+      </div></div>
+      <div class="legend">
+        <span><i class="dev"></i>Dev working</span>
+        <span><i class="wait"></i>Waiting on APS</span>
+        <span><i class="aps"></i>APS working by hand, dev on the chat</span>
+        <span><i class="round"></i>One check: request, run, result</span>
+        <span>Timings are illustrative: up to 1 h per round today, about 5 min tomorrow.</span>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Architecture</h2>
+
+    <figure class="arch now">
+      <h3>Now <span>a person is the only bridge into production</span></h3>
+      <div class="scroll">
+      <svg viewBox="0 0 1120 240" role="img" aria-label="Current architecture: the dev team writes commands by hand and sends them over chat to APS, who runs them manually against production logs, database, applications and hosts, then sends the output back">
+        <defs>
+          <marker id="n-hm" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path class="hm" d="M0 0 L10 5 L0 10 z"></path></marker>
+          <marker id="n-hw" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path class="hw" d="M0 0 L10 5 L0 10 z"></path></marker>
+        </defs>
+        <rect class="z" x="10" y="10" width="440" height="220" rx="10"></rect>
+        <text class="zl" x="26" y="32">DEV SIDE</text>
+        <rect class="zp" x="500" y="10" width="610" height="220" rx="10"></rect>
+        <text class="zl" x="516" y="32">PRODUCTION</text>
+
+        <rect class="b" x="30" y="95" width="120" height="44" rx="22"></rect>
+        <circle class="ic" cx="52" cy="117" r="6"></circle>
+        <text class="t" x="66" y="122">Dev team</text>
+        <line class="e" x1="150" y1="117" x2="198" y2="117" marker-end="url(#n-hm)"></line>
+
+        <rect class="b" x="200" y="78" width="190" height="78" rx="6"></rect>
+        <text class="t" x="295" y="102" text-anchor="middle">Written by hand</text>
+        <text class="s" x="295" y="121" text-anchor="middle">commands · scripts · queries</text>
+        <text class="s" x="295" y="138" text-anchor="middle">plus how to run each one</text>
+
+        <line class="ew" x1="390" y1="104" x2="598" y2="104" marker-end="url(#n-hw)"></line>
+        <text class="el fw" x="494" y="93" text-anchor="middle">chat: step-by-step instructions</text>
+        <line class="ew" x1="600" y1="132" x2="392" y2="132" marker-end="url(#n-hw)"></line>
+        <text class="el fw" x="494" y="151" text-anchor="middle">output pasted, or via shared folder</text>
+
+        <rect class="bw" x="600" y="95" width="120" height="44" rx="22"></rect>
+        <circle class="fw" cx="622" cy="117" r="6"></circle>
+        <text class="t" x="636" y="122">APS</text>
+        <text class="s" x="660" y="180" text-anchor="middle">may be busy with critical issues</text>
+
+        <line class="ew" x1="720" y1="117" x2="830" y2="117" marker-end="url(#n-hw)"></line>
+        <text class="el fw" x="775" y="106" text-anchor="middle">runs by hand</text>
+
+        <rect class="bd" x="832" y="60" width="266" height="114" rx="8"></rect>
+        <rect class="b" x="842" y="70" width="118" height="42" rx="4"></rect><text class="t" x="901" y="96" text-anchor="middle">Logs</text>
+        <rect class="b" x="970" y="70" width="118" height="42" rx="4"></rect><text class="t" x="1029" y="96" text-anchor="middle">Database</text>
+        <rect class="b" x="842" y="122" width="118" height="42" rx="4"></rect><text class="t" x="901" y="148" text-anchor="middle">Applications</text>
+        <rect class="b" x="970" y="122" width="118" height="42" rx="4"></rect><text class="t" x="1029" y="148" text-anchor="middle">Hosts</text>
+
+        <text class="el fw" x="230" y="204" text-anchor="middle">up to 1 h per round · dev stays on the chat</text>
+      </svg>
+      </div>
+    </figure>
+
+    <figure class="arch tom">
+      <h3>Tomorrow <span>a checked request goes in, a checked result comes out</span></h3>
+      <div class="scroll">
+      <svg viewBox="0 0 1120 560" role="img" aria-label="Proposed architecture: Claude on the dev side reads project knowledge and sends a structured request into production, where a local model checks it, an executor with a limited read-only account runs it through thin MCPs against logs, database, applications and hosts, a second local model checks the result, and only the filtered result returns to Claude. Everything is written to an audit log.">
+        <defs>
+          <marker id="t-hm" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path class="hm" d="M0 0 L10 5 L0 10 z"></path></marker>
+          <marker id="t-ha" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path class="ha" d="M0 0 L10 5 L0 10 z"></path></marker>
+        </defs>
+        <rect class="z" x="10" y="10" width="440" height="540" rx="10"></rect>
+        <text class="zl" x="26" y="32">DEV SIDE · NO CLIENT DATA</text>
+        <rect class="zp" x="500" y="10" width="610" height="540" rx="10"></rect>
+        <text class="zl" x="516" y="32">PRODUCTION · K8S</text>
+
+        <!-- project knowledge -->
+        <rect class="b" x="150" y="52" width="270" height="120" rx="6"></rect>
+        <text class="t" x="166" y="76">Project knowledge</text>
+        <text class="s" x="166" y="100">Source code</text><text class="s" x="290" y="100">Infra layout</text>
+        <text class="s" x="166" y="122">Documentation</text><text class="s" x="290" y="122">Deployments</text>
+        <text class="s" x="166" y="144">DB schema</text><text class="s" x="290" y="144">Project instructions</text>
+        <line class="e" x1="285" y1="172" x2="285" y2="238" marker-end="url(#t-hm)"></line>
+        <text class="el m" x="293" y="226">reads</text>
+
+        <!-- users -->
+        <text class="s" x="90" y="222" text-anchor="middle">incident symptoms</text>
+        <rect class="b" x="30" y="246" width="120" height="44" rx="22"></rect>
+        <circle class="ic" cx="52" cy="268" r="6"></circle><text class="t" x="66" y="273">Dev team</text>
+        <rect class="b" x="30" y="310" width="120" height="44" rx="22"></rect>
+        <circle class="ic" cx="52" cy="332" r="6"></circle><text class="t" x="66" y="337">APS</text>
+        <line class="e" x1="150" y1="268" x2="198" y2="284" marker-end="url(#t-hm)"></line>
+        <line class="e" x1="150" y1="332" x2="198" y2="316" marker-end="url(#t-hm)"></line>
+
+        <!-- Claude -->
+        <rect class="ba" x="200" y="240" width="170" height="120" rx="12"></rect>
+        <text class="zl fa" x="285" y="266" text-anchor="middle">PRODUCER</text>
+        <text class="t" x="285" y="292" text-anchor="middle" style="font-size:16px">Claude</text>
+        <text class="s" x="285" y="314" text-anchor="middle">turns project data</text>
+        <text class="s" x="285" y="330" text-anchor="middle">into instructions</text>
+
+        <!-- request path -->
+        <line class="ea" x1="370" y1="262" x2="533" y2="262" marker-end="url(#t-ha)"></line>
+        <text class="el fa" x="452" y="250" text-anchor="middle">code-like instructions</text>
+        <text class="el m" x="452" y="280" text-anchor="middle">code · how to run · format</text>
+        <polygon class="bg" points="535,262 550,238 680,238 695,262 680,286 550,286"></polygon>
+        <text class="t" x="615" y="259" text-anchor="middle" style="font-size:12.5px">Request check</text>
+        <text class="s" x="615" y="275" text-anchor="middle">local model: risk</text>
+        <line class="ea" x1="695" y1="262" x2="743" y2="262" marker-end="url(#t-ha)"></line>
+
+        <!-- result path -->
+        <line class="ea" x1="745" y1="330" x2="697" y2="330" marker-end="url(#t-ha)"></line>
+        <polygon class="bg" points="535,330 550,306 680,306 695,330 680,354 550,354"></polygon>
+        <text class="t" x="615" y="327" text-anchor="middle" style="font-size:12.5px">Result check</text>
+        <text class="s" x="615" y="343" text-anchor="middle">local model: client data</text>
+        <line class="ea" x1="535" y1="330" x2="372" y2="330" marker-end="url(#t-ha)"></line>
+        <text class="el fa" x="452" y="318" text-anchor="middle">checked result</text>
+        <text class="el m" x="452" y="348" text-anchor="middle">summaries, not raw data</text>
+        <text class="el fa" x="615" y="380" text-anchor="middle">two borders, each can be tightened</text>
+
+        <!-- executor -->
+        <rect class="ba" x="745" y="226" width="250" height="140" rx="10"></rect>
+        <text class="zl fa" x="870" y="248" text-anchor="middle">RICH RUNTIME</text>
+        <text class="t" x="870" y="272" text-anchor="middle" style="font-size:15px">Qwen executor</text>
+        <text class="s" x="870" y="292" text-anchor="middle">opencode harness · HTTP endpoint</text>
+        <text class="t" x="870" y="320" text-anchor="middle" style="font-size:12px">limited, read-only service account</text>
+        <text class="s" x="870" y="340" text-anchor="middle">runs the instructions, decides nothing</text>
+
+        <!-- audit -->
+        <path class="e" d="M995 250 H1027 V136" marker-end="url(#t-hm)"></path>
+        <text class="el m" x="1035" y="186">records</text>
+        <rect class="b" x="960" y="58" width="134" height="76" rx="6"></rect>
+        <text class="t" x="1027" y="84" text-anchor="middle">Audit log</text>
+        <text class="s" x="1027" y="103" text-anchor="middle">request · run · result</text>
+        <text class="s" x="1027" y="120" text-anchor="middle">visible to APS</text>
+
+        <!-- phase 2 -->
+        <rect class="bd" x="520" y="58" width="200" height="76" rx="6"></rect>
+        <text class="t" x="620" y="84" text-anchor="middle">Phase 2: chat tracer</text>
+        <text class="s" x="620" y="103" text-anchor="middle">local model reads user chats</text>
+        <text class="s" x="620" y="120" text-anchor="middle">for complaints</text>
+        <path class="ed" d="M520 96 H474 V204 H334 V238" marker-end="url(#t-hm)"></path>
+        <text class="el m" x="404" y="197" text-anchor="middle">issue candidates</text>
+
+        <!-- thin MCPs -->
+        <line class="e" x1="835" y1="366" x2="835" y2="394" marker-end="url(#t-hm)"></line>
+        <rect class="b" x="632" y="396" width="406" height="40" rx="20"></rect>
+        <text class="s" x="650" y="421">thin MCPs</text>
+        <rect class="ba" x="716" y="403" width="56" height="26" rx="13"></rect><text class="t" x="744" y="421" text-anchor="middle" style="font-size:12px">logs</text>
+        <rect class="ba" x="780" y="403" width="56" height="26" rx="13"></rect><text class="t" x="808" y="421" text-anchor="middle" style="font-size:12px">sql</text>
+        <rect class="ba" x="844" y="403" width="56" height="26" rx="13"></rect><text class="t" x="872" y="421" text-anchor="middle" style="font-size:12px">jmx</text>
+        <rect class="ba" x="908" y="403" width="56" height="26" rx="13"></rect><text class="t" x="936" y="421" text-anchor="middle" style="font-size:12px">host</text>
+        <rect class="bd" x="972" y="403" width="56" height="26" rx="13"></rect><text class="s" x="1000" y="421" text-anchor="middle">jvm</text>
+
+        <line class="e" x1="744" y1="436" x2="606" y2="468" marker-end="url(#t-hm)"></line>
+        <line class="e" x1="808" y1="436" x2="748" y2="466" marker-end="url(#t-hm)"></line>
+        <line class="e" x1="872" y1="436" x2="878" y2="468" marker-end="url(#t-hm)"></line>
+        <line class="ed" x1="1000" y1="436" x2="906" y2="468" marker-end="url(#t-hm)"></line>
+        <line class="e" x1="936" y1="436" x2="998" y2="468" marker-end="url(#t-hm)"></line>
+        <text class="el m" x="560" y="452" text-anchor="middle">read-only</text>
+
+        <!-- targets -->
+        <rect class="b" x="552" y="470" width="110" height="52" rx="3"></rect>
+        <rect class="b" x="545" y="477" width="110" height="52" rx="3"></rect>
+        <text class="t" x="600" y="508" text-anchor="middle">Logs</text>
+
+        <path class="b" d="M690 480 V520 A50 9 0 0 0 790 520 V480"></path>
+        <ellipse class="b" cx="740" cy="480" rx="50" ry="9"></ellipse>
+        <text class="t" x="740" y="512" text-anchor="middle">Database</text>
+
+        <rect class="b" x="825" y="470" width="110" height="58" rx="4"></rect>
+        <text class="t" x="880" y="495" text-anchor="middle">Applications</text>
+        <text class="s" x="880" y="513" text-anchor="middle">JVM · JMX</text>
+
+        <rect class="b" x="947" y="470" width="34" height="16" rx="2"></rect>
+        <rect class="b" x="947" y="491" width="34" height="16" rx="2"></rect>
+        <rect class="b" x="947" y="512" width="34" height="16" rx="2"></rect>
+        <circle class="ic" cx="954" cy="478" r="2"></circle><circle class="ic" cx="954" cy="499" r="2"></circle><circle class="ic" cx="954" cy="520" r="2"></circle>
+        <text class="t" x="990" y="497">Hosts</text>
+        <text class="s" x="990" y="514">metrics · network</text>
+      </svg>
+      </div>
+      <figcaption>Solid green line: the only path across the production boundary. Dashed boxes come after the pilot. Claude holds no client data and no production credentials.</figcaption>
+    </figure>
+
+    <div class="dirs">
+      <div><h3>Claude is the producer</h3><p>It turns project data (code, docs, schema, infra, deployments) and the symptoms into instructions. All the reasoning happens here, away from client data.</p></div>
+      <div><h3>Instructions are almost code only</h3><p>A script, how to run it, how to collect the output and the exact result format. Nothing is left for the other side to interpret.</p></div>
+      <div><h3>Qwen is a rich runtime</h3><p>It executes the instructions inside production with more reach than a fixed set of MCPs: it copes with a missing path or a failed command and shapes the output. It never chooses what to investigate.</p></div>
+      <div><h3>Clean borders that can be tightened</h3><p>One border for what may run, one for what may leave. Either can be made stricter without a redesign: fewer permissions, an allowlist of commands, APS approval for selected requests, aggregates only.</p></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head">
+      <h2>One request, two ways</h2>
+      <div class="tabs" role="group" aria-label="What the dev team needs from production">
+        <button id="sc-logs" data-sc="logs" aria-pressed="true">Logs</button>
+        <button id="sc-db" data-sc="db" aria-pressed="false">Database</button>
+        <button id="sc-jmx" data-sc="jmx" aria-pressed="false">App state (JMX)</button>
+        <button id="sc-jvm" data-sc="jvm" aria-pressed="false">JVM state</button>
+        <button id="sc-host" data-sc="host" aria-pressed="false">Host and network</button>
+      </div>
+    </div>
+    <p class="note">Illustrative examples. Pick what the dev team needs and compare how the request goes.</p>
+    <div class="two">
+      <article class="panel now">
+        <div class="panel-head"><h3>Now: dev instructs APS in chat</h3><span>starts 10:00</span></div>
+        <div class="panel-body" id="chat" aria-live="polite"></div>
+        <div class="panel-foot" id="chat-foot"></div>
+      </article>
+      <article class="panel tom">
+        <div class="panel-head"><h3>Tomorrow: Claude asks, production answers</h3><span>starts 10:00</span></div>
+        <div class="panel-body pipe" aria-live="polite">
+          <div class="card">
+            <div class="meta"><span>CLAUDE, THE PRODUCER · project data only · no client data</span><span>10:01</span></div>
+            <p id="p-hyp"></p>
+            <pre id="p-code"></pre>
+            <p class="kv"><b>Return:</b> <span id="p-ret"></span></p>
+          </div>
+          <div class="link"><span class="gate">✓ Request check: risk and possible harm</span></div>
+          <div class="prod">
+            <span class="prod-label">PRODUCTION · K8S</span>
+            <div class="exec"><h3>Qwen executor: a rich runtime</h3><span>opencode harness under a limited, read-only service account. Runs the instructions, decides nothing.</span></div>
+            <div class="chips" id="chips"></div>
+          </div>
+          <div class="link"><span class="gate">✓ Result check: client data stays in production</span></div>
+          <div class="card result">
+            <div class="meta"><span>RESULT · back to Claude and the dev team</span><span>10:05</span></div>
+            <p id="p-res"></p>
+          </div>
+        </div>
+        <div class="panel-foot" id="pipe-foot"></div>
+      </article>
+    </div>
+  </section>
+
+  <section>
+    <h2>What it costs today, what changes</h2>
+    <div class="tablebox">
+      <table>
+        <thead><tr><th scope="col">Now</th><th scope="col">Tomorrow</th></tr></thead>
+        <tbody>
+          <tr><td class="was">Dev must write every command, script and query, then explain how to run it</td><td class="will">Claude writes the code, the run instructions and the result format</td></tr>
+          <tr><td class="was">APS is instructed in chat all the time, even for simple commands</td><td class="will">Nobody is instructed. The executor runs the whole check on its own</td></tr>
+          <tr><td class="was">A task cannot be handed over. Dev stays on the chat until it is done</td><td class="will">Dev hands the question over and gets the result back</td></tr>
+          <tr><td class="was">Up to 1 hour from request to result</td><td class="will">Minutes</td></tr>
+          <tr><td class="was">Big results need a shared folder or a similar detour</td><td class="will">Output of any size is reduced to what matters inside production</td></tr>
+          <tr><td class="was">APS may be busy with more critical issues</td><td class="will">APS stays free for critical issues, and can use the same tool</td></tr>
+          <tr><td class="was">Many checks are never asked for: too late to matter, or too much load on APS</td><td class="will">Cheap enough to check every hypothesis</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section>
+    <h2>Directions that make it safe</h2>
+    <div class="dirs">
+      <div><h3>Client data stays in production</h3><p>Claude works from code, schema and layout only. Results are checked and reduced to summaries, counts and timings before they leave.</p></div>
+      <div><h3>Read-only, behind clean borders</h3><p>A limited service account sets what is possible at all. Checks on the way in and on the way out sit on top, and each border can be tightened if needed.</p></div>
+      <div><h3>A runtime, not a decision maker</h3><p>Qwen runs instructions that are almost pure code and returns the result in the requested format. The thinking stays with Claude and the dev team.</p></div>
+      <div><h3>Everything is recorded</h3><p>Each request, what ran and what came back is logged and visible to APS.</p></div>
+      <div><h3>Thin tools</h3><p>A shell plus a few MCPs the size of a shell script, instead of a large MCP estate to build and maintain.</p></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Where to start</h2>
+    <ol class="road">
+      <li><span class="eyebrow">Pilot</span><h3>Logs, database, host metrics, app JMX</h3><p>All read-only, each through a thin MCP.</p></li>
+      <li><span class="eyebrow">Next</span><h3>JVM state and network checks</h3><p>Small MCPs added once the pilot has earned trust.</p></li>
+      <li><span class="eyebrow">Phase 2</span><h3>Issues found before they are raised</h3><p>Complaints in user chats become issue candidates, checked against the whole system, ending in an answer or an escalation.</p></li>
+    </ol>
+  </section>
+</div>
+
+<script>
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+  function el(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
+  function clock(m) { var h = 10 + Math.floor(m / 60), mm = m % 60; return h + ":" + (mm < 10 ? "0" : "") + mm; }
+
+  /* ---------- Race ---------- */
+  var NOW_SEGS = [
+    [0, 8, "dev", "Dev writes commands"], [8, 14, "dev", "Explains in chat"], [14, 32, "wait", "Waits for APS"],
+    [32, 47, "aps", "APS runs by hand, asks back"], [47, 57, "wait", "Shared folder transfer"], [57, 60, "dev", ""]
+  ];
+  var MSG_AT = [8, 14, 32, 33, 47, 49, 58, 60];
+  function seg(parent, a, b, cls, label) {
+    var s = el("div", "seg " + cls, label);
+    s.style.left = (a / 60 * 100) + "%"; s.style.width = ((b - a) / 60 * 100) + "%";
+    parent.appendChild(s);
+  }
+  NOW_SEGS.forEach(function (s) { seg($("rv-now"), s[0], s[1], s[2], s[3]); });
+  for (var r = 0; r < 12; r++) seg($("rv-tom"), r * 5, r * 5 + 5, "round", "✓ " + (r + 1));
+  for (var t = 0; t <= 60; t += 10) { var a = el("span", "", t + " min"); a.style.left = (t / 60 * 100) + "%"; $("axis").appendChild(a); }
+
+  function setTime(m) {
+    var pct = m / 60 * 100, clip = "inset(0 " + (100 - pct) + "% 0 0)";
+    $("rv-now").style.clipPath = clip; $("rv-tom").style.clipPath = clip;
+    $("ph-now").style.left = "calc(" + pct + "% - " + (m >= 60 ? 2 : 0) + "px)"; $("ph-tom").style.left = $("ph-now").style.left;
+    $("n-ans").textContent = m >= 60 ? 1 : 0;
+    $("n-msg").textContent = MSG_AT.filter(function (x) { return x <= m; }).length;
+    $("t-ans").textContent = Math.floor(m / 5);
+  }
+  setTime(60);
+  var playing = false;
+  $("play").addEventListener("click", function () {
+    if (playing) return;
+    var reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (reduce) { setTime(60); return; }
+    playing = true; var btn = $("play"); btn.disabled = true; btn.textContent = "Playing…";
+    var start = null, DUR = 9000;
+    function step(ts) {
+      if (start === null) start = ts;
+      var p = Math.min(1, (ts - start) / DUR);
+      setTime(p * 60);
+      if (p < 1) requestAnimationFrame(step);
+      else { setTime(60); playing = false; btn.disabled = false; btn.textContent = "Replay the hour"; }
+    }
+    requestAnimationFrame(step);
+  });
+
+  /* ---------- Scenarios ---------- */
+  var SOURCES = [["logs", "Logs"], ["db", "DB"], ["jmx", "JMX"], ["jvm", "JVM"], ["host", "Host"]];
+  var SC = {
+    logs: {
+      chat: [
+        [8, "d", "Please search the app log on both nodes for \"Timeout\" between 09:40 and 09:55. Command is below."],
+        [14, "d", "The path is /app/logs/service.log. Yesterday's file is gzipped, so use zgrep for that one."],
+        [32, "a", "Was on a P1, picking this up now. Which node first?"],
+        [33, "d", "Either. Same command on both."],
+        [47, "a", "The output is 300 MB, too big to paste."],
+        [49, "d", "Please zip it to the shared folder."],
+        [58, "a", "Uploaded."],
+        [60, "d", "Thanks. Now I need the cache reload events from the same window…"]
+      ],
+      hyp: "Hypothesis: requests time out right after a cache reload.",
+      code: "zgrep -hE \"Timeout|Cache reload\" /app/logs/service.log* \\\n  | between 09:40 09:55 | per-minute-counts",
+      ret: "events per minute and their order on each node, no payloads.",
+      res: "Timeouts start 4 s after each cache reload, on both nodes. 3 reloads, 3 bursts.",
+      note: "In the pilot"
+    },
+    db: {
+      chat: [
+        [6, "d", "Please run this SQL on the production replica and send me the rows."],
+        [21, "a", "It fails: column not found."],
+        [24, "d", "Sorry, wrong schema prefix. Fixed version below."],
+        [38, "a", "12,000 rows. How do you want them?"],
+        [40, "d", "CSV to the shared folder, please."],
+        [55, "a", "Done."],
+        [60, "d", "Thanks. Can you run it again grouped by status?"]
+      ],
+      hyp: "Hypothesis: jobs are stuck in one status.",
+      code: "SELECT status, count(*), min(updated_at)\nFROM jobs\nWHERE created_at > now() - interval '1 hour'\nGROUP BY status;",
+      ret: "the aggregate only, no row data.",
+      res: "212 jobs are stuck in PENDING, the oldest for 47 min. All other statuses look normal.",
+      note: "In the pilot"
+    },
+    jmx: {
+      chat: [
+        [5, "d", "Can you read the inbound queue size from JMX on node 2?"],
+        [19, "a", "Which bean? I can't find it in the tree."],
+        [21, "d", "com.app:type=Queue,name=inbound, attribute Size."],
+        [34, "a", "jconsole can't connect from my host. Trying another one."],
+        [46, "a", "Size = 18,400."],
+        [48, "d", "And ActiveConsumers? And can you read both again in 5 minutes to see the trend?"],
+        [60, "a", "On another issue right now, will do after."]
+      ],
+      hyp: "Hypothesis: the inbound queue is growing because consumers stopped.",
+      code: "jmx.read node-2 com.app:type=Queue,name=inbound \\\n  Size ActiveConsumers --every 30s --for 5m",
+      ret: "both values as a short time series.",
+      res: "The queue grows from 18.4k to 21.9k in 5 min. Active consumers: 0 of 4.",
+      note: "In the pilot, read-only"
+    },
+    jvm: {
+      chat: [
+        [5, "d", "Please take a thread dump of the service on node 1."],
+        [18, "a", "How do I do that?"],
+        [20, "d", "jstack <pid>, as the app user. Get the pid with jps."],
+        [33, "a", "Permission denied."],
+        [35, "d", "Run it with sudo -u app."],
+        [50, "a", "9,000 lines. Sending it via the shared folder."],
+        [60, "d", "Thanks. I actually need three dumps, 10 seconds apart…"]
+      ],
+      hyp: "Hypothesis: worker threads are blocked on one lock.",
+      code: "jvm.threads node-1 service --dumps 3 --interval 10s \\\n  | group-by-stack --stuck-in-all",
+      ret: "threads that sit in the same stack in all three dumps, grouped.",
+      res: "38 threads are blocked on the same lock in all three dumps. The reload thread holds it.",
+      note: "Follows the pilot"
+    },
+    host: {
+      chat: [
+        [4, "d", "Can node 2 reach the database host on port 5432?"],
+        [17, "a", "How do I check that?"],
+        [19, "d", "nc -zv <db host> 5432, run from node 2 itself."],
+        [31, "a", "Connected."],
+        [33, "d", "And from node 1? Plus CPU and disk on both, please."],
+        [38, "a", "On a call, give me 20 minutes."],
+        [60, "a", "Node 1 times out. CPU and disk are fine."]
+      ],
+      hyp: "Hypothesis: one node lost its route to the database.",
+      code: "for n in node-1 node-2; do\n  host.reach $n <db host>:5432; host.metrics $n cpu mem disk\ndone",
+      ret: "one table: node, reachable, CPU, memory, disk.",
+      res: "Node 1 cannot reach the database (timeout). Node 2 is fine. CPU and disk are normal on both.",
+      note: "Metrics in the pilot, reachability follows"
+    }
+  };
+
+  function show(key) {
+    var s = SC[key], chat = $("chat"), prev = 0;
+    chat.textContent = "";
+    s.chat.forEach(function (m) {
+      if (m[0] - prev >= (prev === 0 ? 4 : 8)) chat.appendChild(el("div", "gap", (m[0] - prev) + (prev === 0 ? " min writing the request" : " min waiting")));
+      var b = el("div", "msg " + m[1]);
+      b.appendChild(el("span", "meta", (m[1] === "d" ? "Dev" : "APS") + " · " + clock(m[0])));
+      b.appendChild(el("span", "", m[2]));
+      chat.appendChild(b); prev = m[0];
+    });
+    $("chat-foot").textContent = s.chat.length + " chat messages · about 1 hour · dev stays on the chat the whole time";
+    $("p-hyp").textContent = s.hyp; $("p-code").textContent = s.code; $("p-ret").textContent = s.ret; $("p-res").textContent = s.res;
+    var chips = $("chips"); chips.textContent = "";
+    SOURCES.forEach(function (c) { chips.appendChild(el("span", c[0] === key ? "on" : "", c[1])); });
+    chips.appendChild(el("em", "", "through a thin MCP · " + s.note));
+    $("pipe-foot").textContent = "0 chat messages · about 5 minutes · runs on its own, then the next check";
+    document.querySelectorAll("[data-sc]").forEach(function (b) { b.setAttribute("aria-pressed", b.getAttribute("data-sc") === key ? "true" : "false"); });
+  }
+  document.querySelectorAll("[data-sc]").forEach(function (b) { b.addEventListener("click", function () { show(b.getAttribute("data-sc")); }); });
+  show("logs");
+})();
+</script>
+
+</body>
+</html>
